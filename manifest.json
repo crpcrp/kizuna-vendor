@@ -1,104 +1,299 @@
 {
-  "schemaVersion": 1,
-  "platform": "win32-x64",
-  "components": [
+  "schemaVersion": 2,
+  "payloads": [
     {
-      "name": "ffmpeg",
-      "version": "8.1.2-essentials_build-www.gyan.dev",
-      "license": "GPL-3.0-or-later",
-      "binaryArchive": {
-        "url": "https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-8.1.2-essentials_build.zip",
-        "sha256": "db580001caa24ac104c8cb856cd113a87b0a443f7bdf47d8c12b1d740584a2ec"
-      },
-      "source": {
-        "url": "https://github.com/FFmpeg/FFmpeg/tree/38b88335f99e76ed89ff3c93f877fdefce736c13",
-        "buildRecipe": "https://github.com/GyanD/codexffmpeg/tree/8.1.2"
-      },
-      "files": [
+      "platform": "win32",
+      "architecture": "x64",
+      "components": [
         {
-          "path": "ffmpeg/bin/ffmpeg.exe",
-          "sha256": "1326dde4c84ff1f96fe6b8916c5bed29e163e9b5dccf995f6f3db069d143ec5e"
+          "name": "ffmpeg",
+          "version": "8.1.2-essentials_build-www.gyan.dev",
+          "license": "GPL-3.0-or-later",
+          "binaryArchive": {
+            "url": "https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-8.1.2-essentials_build.zip",
+            "sha256": "db580001caa24ac104c8cb856cd113a87b0a443f7bdf47d8c12b1d740584a2ec"
+          },
+          "source": {
+            "url": "https://github.com/FFmpeg/FFmpeg/tree/38b88335f99e76ed89ff3c93f877fdefce736c13",
+            "buildRecipe": "https://github.com/GyanD/codexffmpeg/tree/8.1.2"
+          },
+          "files": [
+            {
+              "path": "ffmpeg/bin/ffmpeg.exe",
+              "sha256": "1326dde4c84ff1f96fe6b8916c5bed29e163e9b5dccf995f6f3db069d143ec5e"
+            },
+            {
+              "path": "ffmpeg/bin/ffprobe.exe",
+              "sha256": "b49ccc7c6547b141ad5a2f6ec69cc04323d7133d7704d70b331b904c63eecb07"
+            }
+          ],
+          "licenseFiles": [
+            "ffmpeg/LICENSE.GPLv3.txt",
+            "ffmpeg/README.upstream.txt"
+          ]
         },
         {
-          "path": "ffmpeg/bin/ffprobe.exe",
-          "sha256": "b49ccc7c6547b141ad5a2f6ec69cc04323d7133d7704d70b331b904c63eecb07"
-        }
-      ],
-      "licenseFiles": [
-        "ffmpeg/LICENSE.GPLv3.txt",
-        "ffmpeg/README.upstream.txt"
-      ]
-    },
-    {
-      "name": "mpv",
-      "version": "0.41.0-906-gb27573a23",
-      "license": "GPL-3.0-or-later",
-      "binaryArchive": {
-        "url": "https://github.com/zhongfly/mpv-winbuild/releases/download/2026-07-26-b27573a239/mpv-x86_64-20260726-git-b27573a239.7z",
-        "sha256": "cee9077eb838c920ff1888e056cab79797539c97ed91e004bd1cf5a56afe19d5"
-      },
-      "source": {
-        "url": "https://github.com/mpv-player/mpv/tree/b27573a239b4da8fd8cf2bbc59d74a1a9b56a32b",
-        "buildRecipe": "https://github.com/zhongfly/mpv-winbuild/tree/2026-07-26-b27573a239",
-        "embeddedFfmpeg": "https://github.com/FFmpeg/FFmpeg/tree/601d9ee881fbd9d9ff44466c561c480ff244eb9f",
-        "embeddedLibplacebo": "https://github.com/haasn/libplacebo/tree/4c426e466814536def653cb23f1d1c287ea7a7f5"
-      },
-      "files": [
-        {
-          "path": "mpv/bin/mpv.exe",
-          "sha256": "334cefcbd09df397ec6ba2a900d597553c3d72cae22e18a7cd9995c01f470009"
-        }
-      ],
-      "licenseFiles": [
-        "mpv/Copyright",
-        "mpv/LICENSE.GPLv2-or-later.txt",
-        "mpv/LICENSE.GPLv3.txt"
-      ]
-    },
-    {
-      "name": "mecab",
-      "version": "0.996.13",
-      "license": "BSD-3-Clause",
-      "binaryArchive": {
-        "url": "https://github.com/shogo82148/mecab/releases/download/v0.996.13/mecab-msvc-x64-0.996.13.zip",
-        "sha256": "9f565da348381cb073145e67d93ee637eeaf722703cbfc2cdd97a68aba068bbf"
-      },
-      "source": {
-        "url": "https://github.com/shogo82148/mecab/tree/v0.996.13",
-        "archiveSha256": "3da28541062d6d1cfbb92ab09481779f2ad735c89705d981eb66f072ef776538"
-      },
-      "files": [
-        {
-          "path": "mecab/bin/mecab.exe",
-          "sha256": "e445d90f8d37a3fa55f59fd42350ee19b52c16c692936e9499db73eeee89a0e8"
+          "name": "mpv",
+          "version": "0.41.0-906-gb27573a23",
+          "license": "GPL-3.0-or-later",
+          "binaryArchive": {
+            "url": "https://github.com/zhongfly/mpv-winbuild/releases/download/2026-07-26-b27573a239/mpv-x86_64-20260726-git-b27573a239.7z",
+            "sha256": "cee9077eb838c920ff1888e056cab79797539c97ed91e004bd1cf5a56afe19d5"
+          },
+          "source": {
+            "url": "https://github.com/mpv-player/mpv/tree/b27573a239b4da8fd8cf2bbc59d74a1a9b56a32b",
+            "buildRecipe": "https://github.com/zhongfly/mpv-winbuild/tree/2026-07-26-b27573a239",
+            "embeddedFfmpeg": "https://github.com/FFmpeg/FFmpeg/tree/601d9ee881fbd9d9ff44466c561c480ff244eb9f",
+            "embeddedLibplacebo": "https://github.com/haasn/libplacebo/tree/4c426e466814536def653cb23f1d1c287ea7a7f5"
+          },
+          "files": [
+            {
+              "path": "mpv/bin/mpv.exe",
+              "sha256": "334cefcbd09df397ec6ba2a900d597553c3d72cae22e18a7cd9995c01f470009"
+            }
+          ],
+          "licenseFiles": [
+            "mpv/Copyright",
+            "mpv/LICENSE.GPLv2-or-later.txt",
+            "mpv/LICENSE.GPLv3.txt"
+          ]
         },
         {
-          "path": "mecab/bin/libmecab.dll",
-          "sha256": "a580a55e7e80aecef9758cb0fbb6363962f4542299f53f175751506d78b1b219"
+          "name": "mecab",
+          "version": "0.996.13",
+          "license": "BSD-3-Clause",
+          "binaryArchive": {
+            "url": "https://github.com/shogo82148/mecab/releases/download/v0.996.13/mecab-msvc-x64-0.996.13.zip",
+            "sha256": "9f565da348381cb073145e67d93ee637eeaf722703cbfc2cdd97a68aba068bbf"
+          },
+          "source": {
+            "url": "https://github.com/shogo82148/mecab/tree/v0.996.13",
+            "archiveSha256": "3da28541062d6d1cfbb92ab09481779f2ad735c89705d981eb66f072ef776538"
+          },
+          "files": [
+            {
+              "path": "mecab/bin/mecab.exe",
+              "sha256": "e445d90f8d37a3fa55f59fd42350ee19b52c16c692936e9499db73eeee89a0e8"
+            },
+            {
+              "path": "mecab/bin/libmecab.dll",
+              "sha256": "a580a55e7e80aecef9758cb0fbb6363962f4542299f53f175751506d78b1b219"
+            }
+          ],
+          "licenseFiles": [
+            "mecab/LICENSE.BSD.txt",
+            "mecab/AUTHORS"
+          ]
+        },
+        {
+          "name": "ipadic",
+          "version": "2.7.0-20070801",
+          "license": "NAIST-2003",
+          "source": {
+            "url": "https://github.com/shogo82148/mecab/tree/v0.996.13/mecab-ipadic",
+            "archiveUrl": "https://github.com/shogo82148/mecab/releases/download/v0.996.13/mecab-ipadic-2.7.0-20070801.tar.gz",
+            "archiveSha256": "74130f44264ce5b8cfa51e498b99345f71d2f854b74a9e9dfb6489e13e479e67"
+          },
+          "files": [
+            {
+              "path": "mecab/ipadic/sys.dic",
+              "sha256": "47ba5ff7f00328a04bde39fa679943c4a87f863dfef0cf1cf4d006dbf2134ab9"
+            }
+          ],
+          "licenseFiles": [
+            "mecab/ipadic/COPYING"
+          ]
         }
-      ],
-      "licenseFiles": [
-        "mecab/LICENSE.BSD.txt",
-        "mecab/AUTHORS"
       ]
     },
     {
-      "name": "ipadic",
-      "version": "2.7.0-20070801",
-      "license": "NAIST-2003",
-      "source": {
-        "url": "https://github.com/shogo82148/mecab/tree/v0.996.13/mecab-ipadic",
-        "archiveUrl": "https://github.com/shogo82148/mecab/releases/download/v0.996.13/mecab-ipadic-2.7.0-20070801.tar.gz",
-        "archiveSha256": "74130f44264ce5b8cfa51e498b99345f71d2f854b74a9e9dfb6489e13e479e67"
+      "platform": "linux",
+      "architecture": "x64",
+      "baseline": {
+        "distribution": "Ubuntu 24.04 LTS",
+        "codename": "noble",
+        "glibc": "2.39",
+        "electron": "43",
+        "dependencyPolicy": "The Linux package declares exact mpv and ffmpeg Ubuntu package dependencies; MeCab's non-baseline shared library is mirrored and loaded relative to its wrapper."
       },
-      "files": [
+      "components": [
         {
-          "path": "mecab/ipadic/sys.dic",
-          "sha256": "47ba5ff7f00328a04bde39fa679943c4a87f863dfef0cf1cf4d006dbf2134ab9"
+          "name": "mpv",
+          "version": "0.37.0-1ubuntu4",
+          "license": "GPL-2.0-or-later",
+          "binaryArchive": {
+            "url": "http://archive.ubuntu.com/ubuntu/pool/universe/m/mpv/mpv_0.37.0-1ubuntu4_amd64.deb",
+            "sha256": "26b9273c3cc4c69b55ad908d168c624b95fd6785ea96625143e344b53e786e94"
+          },
+          "source": {
+            "url": "https://launchpad.net/ubuntu/+source/mpv/0.37.0-1ubuntu4",
+            "upstreamArchiveSha256": "304da2bbb1303d6006b816c4f44de3a79f2a62a7bd7e90bca090116dafd2655c",
+            "packagingArchiveSha256": "997ce33f0fb476eea150207b8707b3dce42ca79abffdf166ca7af53d7d816a7b",
+            "buildRecipe": "scripts/refresh-linux-x64.sh"
+          },
+          "systemPackageDependency": "mpv (= 0.37.0-1ubuntu4)",
+          "files": [
+            {
+              "path": "linux-x64/mpv/bin/mpv",
+              "sha256": "86cf9d4c8510d0a941953f7f3a181a90eaf965855aa1c5d414eb322f2ba81528",
+              "executable": true
+            }
+          ],
+          "licenseFiles": [
+            "linux-x64/mpv/licenses/COPYRIGHT.Ubuntu",
+            "linux-x64/mpv/licenses/GPL-2.txt",
+            "linux-x64/mpv/licenses/LGPL-2.1.txt"
+          ]
+        },
+        {
+          "name": "ffmpeg",
+          "version": "7:6.1.1-3ubuntu5",
+          "license": "GPL-3.0-or-later",
+          "binaryArchive": {
+            "url": "http://archive.ubuntu.com/ubuntu/pool/universe/f/ffmpeg/ffmpeg_6.1.1-3ubuntu5_amd64.deb",
+            "sha256": "1a23baace5f2688a47e28119aedae6993cd638e6279a7227dfc52d9a337a1c17"
+          },
+          "source": {
+            "url": "https://launchpad.net/ubuntu/+source/ffmpeg/7%3A6.1.1-3ubuntu5",
+            "upstreamArchiveSha256": "8684f4b00f94b85461884c3719382f1261f0d9eb3d59640a1f4ac0873616f968",
+            "packagingArchiveSha256": "874b7862a84e2afa89a74b9c736e988858becb8f17c0b0e8f339a71cb2ddbff1",
+            "buildRecipe": "scripts/refresh-linux-x64.sh"
+          },
+          "systemPackageDependency": "ffmpeg (= 7:6.1.1-3ubuntu5)",
+          "files": [
+            {
+              "path": "linux-x64/ffmpeg/bin/ffmpeg",
+              "sha256": "ed16af623947494a72e284b6eb8ff225f2da22b38b5d5069c2fd4b4ba3384e41",
+              "executable": true
+            },
+            {
+              "path": "linux-x64/ffmpeg/bin/ffprobe",
+              "sha256": "272f6ebc634a63d9c8b4ca68e964119d980f25154e5aa2c35e5487da48e9a58f",
+              "executable": true
+            }
+          ],
+          "licenseFiles": [
+            "linux-x64/ffmpeg/licenses/COPYRIGHT.Ubuntu",
+            "linux-x64/ffmpeg/licenses/GPL-2.txt",
+            "linux-x64/ffmpeg/licenses/GPL-3.txt",
+            "linux-x64/ffmpeg/licenses/LGPL-2.txt",
+            "linux-x64/ffmpeg/licenses/LGPL-2.1.txt"
+          ]
+        },
+        {
+          "name": "mecab",
+          "version": "0.996-14ubuntu4",
+          "license": "BSD-3-Clause",
+          "binaryArchives": [
+            {
+              "package": "mecab",
+              "url": "http://archive.ubuntu.com/ubuntu/pool/universe/m/mecab/mecab_0.996-14ubuntu4_amd64.deb",
+              "sha256": "b2b273a40ca0baf818b384a6fe408c9bda8306c11450cfa3f4987115330ca1b5"
+            },
+            {
+              "package": "libmecab2",
+              "url": "http://archive.ubuntu.com/ubuntu/pool/main/m/mecab/libmecab2_0.996-14ubuntu4_amd64.deb",
+              "sha256": "cc91804dc82ac766833a97288384b7b65762aa26212bb915a556e13430c61745"
+            }
+          ],
+          "source": {
+            "url": "https://launchpad.net/ubuntu/+source/mecab/0.996-14ubuntu4",
+            "upstreamArchiveSha256": "e073325783135b72e666145c781bb48fada583d5224fb2490fb6c1403ba69c59",
+            "packagingArchiveSha256": "43c98fe565ffd8b4bc7294db26bb0fe25c40ace537918a713c32510f5941bc78",
+            "buildRecipe": "scripts/refresh-linux-x64.sh"
+          },
+          "files": [
+            {
+              "path": "linux-x64/mecab/bin/mecab",
+              "sha256": "b2743427db757884c6ee2aa4b4577e7321bd473e7c2a75c86a41d8c9c39f2456",
+              "executable": true
+            },
+            {
+              "path": "linux-x64/mecab/bin/mecab.bin",
+              "sha256": "820b0268efd6cbf06c3f5e15e4405e794498852c54e18a7eded58ea05f49156f",
+              "executable": true
+            },
+            {
+              "path": "linux-x64/mecab/lib/libmecab.so.2",
+              "sha256": "6c53f6130a74b600de0338332548a92dff8632e9a2f36abe2a28d257238d49e9",
+              "executable": false
+            },
+            {
+              "path": "linux-x64/mecab/lib/libmecab.so.2.0.0",
+              "sha256": "6c53f6130a74b600de0338332548a92dff8632e9a2f36abe2a28d257238d49e9",
+              "executable": false
+            },
+            {
+              "path": "linux-x64/mecab/etc/mecabrc",
+              "sha256": "0128c3291b5437a3a3f78c94b979ba57dabcd899307bf32865fdf857aa922d79",
+              "executable": false
+            }
+          ],
+          "licenseFiles": [
+            "linux-x64/mecab/licenses/COPYRIGHT.MeCab-Ubuntu",
+            "linux-x64/mecab/licenses/COPYRIGHT.libmecab-Ubuntu",
+            "linux-x64/mecab/licenses/GPL-2.txt",
+            "linux-x64/mecab/licenses/LGPL-2.1.txt"
+          ]
+        },
+        {
+          "name": "ipadic",
+          "version": "2.7.0-20070801+main-3",
+          "license": "NAIST-2003",
+          "binaryArchives": [
+            {
+              "package": "mecab-ipadic",
+              "url": "http://archive.ubuntu.com/ubuntu/pool/main/m/mecab-ipadic/mecab-ipadic_2.7.0-20070801%2Bmain-3_all.deb",
+              "sha256": "82e538f2015959972b649359159d2984e6d47514d503c9edb5fbda2631a09c50"
+            },
+            {
+              "package": "mecab-ipadic-utf8",
+              "url": "http://archive.ubuntu.com/ubuntu/pool/main/m/mecab-ipadic/mecab-ipadic-utf8_2.7.0-20070801%2Bmain-3_all.deb",
+              "sha256": "a7f5fa4f63ac6e766c3162ea3abfff04532288d7e341cfb6ffd8c5a6cd8f8bf9"
+            },
+            {
+              "package": "mecab-utils",
+              "url": "http://archive.ubuntu.com/ubuntu/pool/main/m/mecab/mecab-utils_0.996-14ubuntu4_amd64.deb",
+              "sha256": "8b1fa63b945364e94af81fb35d2c4efe192f2d7feda919c349adb7cfae33e9eb"
+            }
+          ],
+          "source": {
+            "url": "https://launchpad.net/ubuntu/+source/mecab-ipadic/2.7.0-20070801%2Bmain-3",
+            "upstreamArchiveSha256": "b62f527d881c504576baed9c6ef6561554658b175ce6ae0096a60307e49e3523",
+            "packagingArchiveSha256": "2796c8e31f52d11c1393c53cd664756f83d609597123c50f658938449499993b",
+            "buildRecipe": "scripts/refresh-linux-x64.sh"
+          },
+          "files": [
+            {
+              "path": "linux-x64/mecab/ipadic/char.bin",
+              "sha256": "81bba502ae48fa005a374819f15e44452eb68086a8b323ec20a044d514400832",
+              "executable": false
+            },
+            {
+              "path": "linux-x64/mecab/ipadic/dicrc",
+              "sha256": "b58fe2cb8df8cb6f53f382476da104257d6ecbd2fce04eea0c67bec4337c7b2d",
+              "executable": false
+            },
+            {
+              "path": "linux-x64/mecab/ipadic/matrix.bin",
+              "sha256": "ee44d7350cdcb680ebd699f83e121be1dc63310f8832d55bcb537a068177611a",
+              "executable": false
+            },
+            {
+              "path": "linux-x64/mecab/ipadic/sys.dic",
+              "sha256": "688d016d62e30ffaab3da558823a39932cd14aa0704ad2844d9071bd93c381d3",
+              "executable": false
+            },
+            {
+              "path": "linux-x64/mecab/ipadic/unk.dic",
+              "sha256": "a55cbb28acef6c8b51757e176b7c158540649b6b4d9e5849785b44596017f51f",
+              "executable": false
+            }
+          ],
+          "licenseFiles": [
+            "linux-x64/mecab/licenses/COPYRIGHT.IPADIC-Ubuntu"
+          ]
         }
-      ],
-      "licenseFiles": [
-        "mecab/ipadic/COPYING"
       ]
     }
   ]

@@ -1,17 +1,19 @@
 # Kizuna vendor runtime
 
-Pinned Windows x64 runtime files for the Kizuna desktop application. The files
-are redistributed unmodified from the upstream archives identified in
-[manifest.json](manifest.json).
+Pinned Windows and Linux x64 runtime files for the Kizuna desktop application.
+The binary provenance, versions, architectures, hashes, and source recipes are
+recorded in [manifest.json](manifest.json).
 
 ## Contents
 
-| Folder | Version | Purpose |
+| Payload | Version | Purpose |
 | --- | --- | --- |
-| `mpv/` | 0.41.0-906-gb27573a23 | Media playback |
-| `ffmpeg/` | 8.1.2 Essentials | Media probing and conversion |
-| `mecab/` | 0.996.13 | Japanese tokenization |
-| `mecab/ipadic/` | 2.7.0-20070801 | MeCab Japanese dictionary |
+| `mpv/` (Windows) | 0.41.0-906-gb27573a23 | Media playback |
+| `ffmpeg/` (Windows) | 8.1.2 Essentials | Media probing and conversion |
+| `mecab/` (Windows) | 0.996.13 | Japanese tokenization |
+| `linux-x64/mpv/` | Ubuntu mpv 0.37.0-1ubuntu4 | Media playback and X11 embedding |
+| `linux-x64/ffmpeg/` | Ubuntu FFmpeg 6.1.1-3ubuntu5 | Media probing and conversion |
+| `linux-x64/mecab/` | Ubuntu MeCab 0.996-14ubuntu4 | Tokenization with UTF-8 IPADIC |
 
 Large files use Git LFS. Install Git LFS before cloning:
 
@@ -20,8 +22,8 @@ git lfs install
 git clone https://github.com/crpcrp/kizuna-vendor.git
 ```
 
-Kizuna's packaging step should copy the component folders into these runtime
-locations:
+Kizuna's Windows packaging step should copy the component folders into these
+runtime locations:
 
 ```text
 mpv/bin/mpv.exe                 -> resources/mpv/mpv.exe
@@ -29,6 +31,34 @@ ffmpeg/bin/*.exe                -> resources/ffmpeg/
 mecab/bin/* + mecab/etc/mecabrc -> resources/mecab/
 mecab/ipadic/                   -> resources/mecab/ipadic/
 ```
+
+For Linux, copy the complete component directories without renaming files:
+
+```text
+linux-x64/mpv/                  -> resources/mpv/
+linux-x64/ffmpeg/               -> resources/ffmpeg/
+linux-x64/mecab/                -> resources/mecab/
+```
+
+The Linux baseline is Ubuntu 24.04 LTS x86-64 with glibc 2.39. Linux packages
+must declare the exact Ubuntu `mpv (= 0.37.0-1ubuntu4)` and
+`ffmpeg (= 7:6.1.1-3ubuntu5)` packages as dependencies; their shared libraries
+are intentionally supplied by the distribution. MeCab's non-baseline
+`libmecab.so.2` travels in this mirror and its wrapper sets a relative loader
+path. See [LINUX_X64_DEPENDENCIES.md](LINUX_X64_DEPENDENCIES.md) for the full
+dependency audit and packaging policy.
+
+Rebuild the Linux payload on a clean Ubuntu 24.04 x64 host, then verify it:
+
+```bash
+./scripts/refresh-linux-x64.sh
+git lfs pull
+./scripts/verify-linux-x64.sh
+```
+
+The rebuild script verifies every downloaded Ubuntu archive before extraction
+and recompiles IPADIC as UTF-8. Git records mode `100755` for all five Linux
+executables and both scripts; a fresh checkout must preserve those modes.
 
 `SHA256SUMS.txt` records every redistributed payload file. `manifest.json`
 records the exact binary archives, source commits, build recipes, licenses, and

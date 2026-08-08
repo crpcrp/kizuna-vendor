@@ -1,6 +1,6 @@
 # Third-party notices
 
-These notices cover the exact unmodified Windows x64 files in this repository.
+These notices cover the Windows and Linux x64 vendor files in this repository.
 They do not license Kizuna's own source code.
 
 ## mpv
@@ -45,3 +45,26 @@ They do not license Kizuna's own source code.
 
 The software is supplied without warranty under the terms of its respective
 license. This file is compliance documentation, not legal advice.
+
+## Linux x64 Ubuntu packages
+
+- mpv `0.37.0-1ubuntu4` is extracted unmodified from Ubuntu 24.04. Its detailed
+  per-file copyright and license grants are in
+  `linux-x64/mpv/licenses/COPYRIGHT.Ubuntu`; the referenced GPL-2 and LGPL-2.1
+  texts accompany it.
+- FFmpeg and ffprobe `7:6.1.1-3ubuntu5` are extracted unmodified from Ubuntu
+  24.04. The build is GPL-3.0-or-later because the linked Ubuntu codec stack
+  enables GPL/version-3 components. Package copyright details and the GPL/LGPL
+  texts are under `linux-x64/ffmpeg/licenses/`.
+- MeCab `0.996-14ubuntu4` and `libmecab.so.2.0.0` are Ubuntu package files.
+  This redistribution selects MeCab's BSD 3-clause option; Ubuntu's full
+  copyright record and alternative GPL/LGPL texts are under
+  `linux-x64/mecab/licenses/`.
+- IPADIC `2.7.0-20070801+main-3` is compiled as UTF-8 from Ubuntu's exact source
+  package. Its NAIST/ICOT copyright and redistribution terms are in
+  `linux-x64/mecab/licenses/COPYRIGHT.IPADIC-Ubuntu`.
+
+The Ubuntu package copyright files retain notices for every included source
+file. System shared libraries declared in `LINUX_X64_DEPENDENCIES.md` are not
+copied into this repository and remain subject to their installed package
+licenses.

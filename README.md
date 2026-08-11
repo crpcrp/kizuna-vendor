@@ -33,12 +33,31 @@ with a `GITHUB_TOKEN` scoped to this repository, records which commit produced
 which asset hash, and puts the `source` block for Kizuna's
 `resources.lock.json` on the run summary.
 
+Publishing from a runner does cost LFS bandwidth, because a runner starts with
+pointers and has to fetch the payload before it can package it. Only the
+selected platform is fetched, and the two cost very differently:
+
+| `--platform` | fetched per publish |
+| --- | --- |
+| `linux-x64` | 58 MB |
+| `win32-x64` | 798 MB — ffmpeg 204, mpv 118, mecab 108, paddleocr 368 |
+| `all` | 855 MB |
+
 `scripts/publish-payloads.sh` is that same code path and stays runnable
-locally, mainly for a dry run:
+locally:
 
 ```bash
 ./scripts/publish-payloads.sh --platform linux-x64 --dry-run
+./scripts/publish-payloads.sh --platform win32-x64
 ```
+
+A local run fetches nothing — the objects are already in the working tree that
+produced them — so publishing the Windows payload from the machine that built
+it costs no LFS bandwidth at all. It is not a weaker provenance claim than the
+workflow's, because the archive is reproducible: the same commit packaged
+anywhere yields the same SHA-256, so a runner can confirm the published hash
+without anyone trusting the laptop. What the workflow adds is a token scoped to
+this repository instead of a personal login, and a permanent record of the run.
 
 Either way it re-verifies every file against `SHA256SUMS.txt`, refuses to
 package an unresolved LFS pointer or an uncommitted tree, and builds

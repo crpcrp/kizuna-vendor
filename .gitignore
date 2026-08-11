@@ -1,0 +1,4 @@
+# Archives staged by scripts/publish-payloads.sh. Hundreds of megabytes that
+# belong on a release, never in a commit.
+/dist/
+/publish.log

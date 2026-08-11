@@ -26,6 +26,11 @@ on:
       - manifest.json
   workflow_dispatch:
 
+# A branch pushed as a pull request otherwise verifies the same commit twice.
+concurrency:
+  group: verify-paddleocr-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -44,10 +49,10 @@ jobs:
         shell: bash
         run: git lfs pull --include="paddleocr/**"
 
-      # A hosted runner has four cores against a desktop's sixteen, so the
-      # desktop budget would fail here for reasons that say nothing about the
-      # payload. Correctness is gated strictly; latency is gated loosely and the
-      # real numbers are printed in the log.
+      # A hosted runner has four cores against a desktop's sixteen and measures
+      # about 2.2 s where the desktop measures 1.6 s, so it gets its own
+      # ceiling. 4 s leaves room for a noisy neighbour while still catching a
+      # real regression; the measured numbers are printed either way.
       - name: Verify checksums, recognition and warm latency
         shell: powershell
-        run: ./scripts/verify-paddleocr-win-x64.ps1 -MaxWarmRecognitionMs 12000
+        run: ./scripts/verify-paddleocr-win-x64.ps1 -MaxWarmRecognitionMs 4000

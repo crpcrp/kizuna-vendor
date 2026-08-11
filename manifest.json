@@ -103,6 +103,187 @@
           "licenseFiles": [
             "mecab/ipadic/COPYING"
           ]
+        },
+        {
+          "name": "paddleocr",
+          "version": "3.7.0",
+          "license": "Apache-2.0",
+          "source": {
+            "url": "https://github.com/PaddlePaddle/PaddleOCR/tree/v3.7.0",
+            "component": "deploy/cpp_infer",
+            "archiveUrl": "https://github.com/PaddlePaddle/PaddleOCR/archive/refs/tags/v3.7.0.tar.gz",
+            "archiveSha256": "8e5f1f9ba18c29621d38394b4f72925960640b315281391c3b3c86804f079a73",
+            "buildRecipe": "scripts/build-paddleocr-win-x64.ps1",
+            "toolchain": "MSVC 19.42.34433 (Visual Studio 2022 Build Tools v143), Release x64",
+            "patches": [
+              "PaddleOCR 3.7.0 src/utils/utility.cc includes <dirent.h>, which MSVC does not provide. The build adds the header-only MIT shim from https://github.com/tronkko/dirent/tree/1.24 to the include path (SHA-256 7383044a375d481ac8ad7ec2f43151263eca792f085001a8020cc590114a06a6). No PaddleOCR source file is edited."
+            ]
+          },
+          "bundledLibraries": [
+            {
+              "name": "Paddle Inference",
+              "version": "3.2.0",
+              "license": "Apache-2.0",
+              "archiveUrl": "https://paddle-inference-lib.bj.bcebos.com/3.2.0/cxx_c/Windows/CPU/x86-64_avx-mkl-vs2019/paddle_inference.zip",
+              "archiveSha256": "23a2ea41abaedb7dfb928dc10baa72975d50b7a8ffe28f8e081a16a8977a95b2",
+              "source": "https://github.com/PaddlePaddle/Paddle/tree/e22e2f9af7eeced7e3c9582ddb69a617887d3eb9",
+              "provides": [
+                "paddleocr/bin/paddle_inference.dll",
+                "paddleocr/bin/phi.dll",
+                "paddleocr/bin/common.dll",
+                "paddleocr/bin/mkldnn.dll",
+                "paddleocr/bin/mklml.dll",
+                "paddleocr/bin/libiomp5md.dll"
+              ]
+            },
+            {
+              "name": "oneDNN",
+              "version": "3.6.2",
+              "license": "Apache-2.0",
+              "source": "https://github.com/uxlfoundation/oneDNN/tree/28d696724426b943e2f4a0e607f90cdc19aedaf6",
+              "provides": ["paddleocr/bin/mkldnn.dll"]
+            },
+            {
+              "name": "Intel MKL small libraries",
+              "version": "2019.0.5.20190502",
+              "license": "Intel Simplified Software License (April 2018)",
+              "archiveUrl": "https://paddlepaddledeps.bj.bcebos.com/mklml_win_2019.0.5.20190502.zip",
+              "archiveSha256": "535857b17643d7f7546b58fc621244e7cfcc4fff2aa2ebd3fc5b4e126bfc36cf",
+              "provides": [
+                "paddleocr/bin/mklml.dll",
+                "paddleocr/bin/libiomp5md.dll"
+              ]
+            },
+            {
+              "name": "OpenCV",
+              "version": "4.10.0",
+              "license": "Apache-2.0",
+              "archiveUrl": "https://github.com/opencv/opencv/releases/download/4.10.0/opencv-4.10.0-windows.exe",
+              "archiveSha256": "bff38466091c313dac21a0b73eea8278316a89c1d434c6f0b10697e087670168",
+              "source": "https://github.com/opencv/opencv/tree/4.10.0",
+              "provides": ["paddleocr/bin/opencv_world4100.dll"]
+            },
+            {
+              "name": "Abseil",
+              "license": "Apache-2.0",
+              "source": "https://github.com/abseil/abseil-cpp",
+              "note": "Fetched by deploy/cpp_infer at configure time.",
+              "provides": ["paddleocr/bin/abseil_dll.dll"]
+            },
+            {
+              "name": "Clipper",
+              "version": "6.4.2",
+              "license": "BSL-1.0",
+              "source": "http://www.angusj.com/delphi/clipper.php",
+              "note": "Vendored inside deploy/cpp_infer/third_party.",
+              "provides": ["paddleocr/bin/polyclipping.dll"]
+            },
+            {
+              "name": "Statically linked into ppocr.exe",
+              "license": "BSD-3-Clause, BSD-2-Clause, and MIT",
+              "note": "glog, gflags, protobuf, xxHash, yaml-cpp, nlohmann/json, and the tronkko dirent shim are linked into the executable. License texts accompany the payload.",
+              "provides": ["paddleocr/bin/ppocr.exe"]
+            },
+            {
+              "name": "Microsoft Visual C++ and Windows runtime files",
+              "version": "14.42.34433",
+              "license": "Microsoft Distributable Code",
+              "notes": "paddleocr/licenses/README.Microsoft-runtime.txt",
+              "provides": [
+                "paddleocr/bin/msvcp140.dll",
+                "paddleocr/bin/vcruntime140.dll",
+                "paddleocr/bin/vcruntime140_1.dll",
+                "paddleocr/bin/concrt140.dll",
+                "paddleocr/bin/vcomp140.dll"
+              ]
+            }
+          ],
+          "files": [
+            {
+              "path": "paddleocr/bin/ppocr.exe",
+              "sha256": "c0252981388629999de26090fd683484280ad0f39d5da48e2d42118b8e9d547e"
+            },
+            {
+              "path": "paddleocr/bin/paddle_inference.dll",
+              "sha256": "aa1edb491b170420b0ca3fe7b8881569c06576d320ef7d89813b69b2a4a245be"
+            },
+            {
+              "path": "paddleocr/bin/phi.dll",
+              "sha256": "30e840f4fefca21be742892b3f039698fdaf741cac32346ead8d1888c9a6faff"
+            },
+            {
+              "path": "paddleocr/bin/opencv_world4100.dll",
+              "sha256": "e6e31e55b9b377b775782c4b27a80b2460dffe3dbee7898e034d25729dca0198"
+            },
+            {
+              "path": "paddleocr/bin/mklml.dll",
+              "sha256": "e2a7fd93e1534568626cffe22676b15164a5a2b3a62f1919a55993478b45811e"
+            },
+            {
+              "path": "paddleocr/bin/mkldnn.dll",
+              "sha256": "3fcd796e77fa6e8e0d78b44bb339e33b5fa91c13140ee1725ce95b90ee02d45d"
+            }
+          ],
+          "licenseFiles": [
+            "paddleocr/licenses/LICENSE.PaddleOCR.txt",
+            "paddleocr/licenses/LICENSE.Paddle.txt",
+            "paddleocr/licenses/LICENSE.oneDNN.txt",
+            "paddleocr/licenses/THIRD-PARTY-PROGRAMS.oneDNN.txt",
+            "paddleocr/licenses/LICENSE.Intel-MKLML.txt",
+            "paddleocr/licenses/THIRD-PARTY-PROGRAMS.Intel-MKLML.txt",
+            "paddleocr/licenses/LICENSE.OpenCV.txt",
+            "paddleocr/licenses/LICENSE.Abseil.txt",
+            "paddleocr/licenses/LICENSE.Clipper.txt",
+            "paddleocr/licenses/LICENSE.nlohmann-json.txt",
+            "paddleocr/licenses/LICENSE.dirent.txt",
+            "paddleocr/licenses/LICENSE.glog.txt",
+            "paddleocr/licenses/LICENSE.gflags.txt",
+            "paddleocr/licenses/LICENSE.protobuf.txt",
+            "paddleocr/licenses/LICENSE.xxHash.txt",
+            "paddleocr/licenses/LICENSE.yaml-cpp.txt",
+            "paddleocr/licenses/README.Microsoft-runtime.txt"
+          ]
+        },
+        {
+          "name": "ppocr-japanese-models",
+          "version": "PP-OCRv5",
+          "license": "Apache-2.0",
+          "source": {
+            "url": "https://github.com/PaddlePaddle/PaddleOCR/blob/v3.7.0/docs/version3.x/model_list.md",
+            "detectionArchiveUrl": "https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/PP-OCRv5_mobile_det_infer.tar",
+            "detectionArchiveSha256": "50446e5d01ac2a73d5319c89513281f6578414c888c602f9af13f93feefffc58",
+            "recognitionArchiveUrl": "https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/PP-OCRv5_mobile_rec_infer.tar",
+            "recognitionArchiveSha256": "566b9512b34e34a9f0db54d87b51fa5a0b9ed2cf1ab7e49728cc0b8b5a64f414",
+            "languageNote": "PP-OCRv5 recognition covers Simplified Chinese, Traditional Chinese, English, Japanese, and Pinyin in one model; no Japanese-specific weight file exists for this generation. There is no separate character dictionary because PIR-format models embed it.",
+            "serverAlternative": {
+              "note": "The heavier server pair is what deploy/cpp_infer selects by default for lang=japan. It is not mirrored; these hashes let a future change pin it without rediscovery.",
+              "detectionArchiveUrl": "https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/PP-OCRv5_server_det_infer.tar",
+              "detectionArchiveSha256": "22a33e0ba6a21425ea4192da03bf4395c9a0c67902bd924b7328fc859073045d",
+              "recognitionArchiveUrl": "https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/PP-OCRv5_server_rec_infer.tar",
+              "recognitionArchiveSha256": "d99be2ffd348943ab52876179168be4fb5b14f5f0812f2ae4c76d89ec2ea750a"
+            }
+          },
+          "files": [
+            {
+              "path": "paddleocr/models/PP-OCRv5_mobile_det_infer/inference.json",
+              "sha256": "05feef1acb00aa4cd7362b15f7f501fc4f99d7b1fa73c1c871e0c7b1504b0f5c"
+            },
+            {
+              "path": "paddleocr/models/PP-OCRv5_mobile_det_infer/inference.pdiparams",
+              "sha256": "afa1820cb16c1fd0dad589d0f8b389139061c1ef6d68019685fd07be997dda5b"
+            },
+            {
+              "path": "paddleocr/models/PP-OCRv5_mobile_rec_infer/inference.json",
+              "sha256": "24587345250c7332d0fc6f9a44e794d078cdaeb64c302fef906f325619de2569"
+            },
+            {
+              "path": "paddleocr/models/PP-OCRv5_mobile_rec_infer/inference.pdiparams",
+              "sha256": "2460da90875937c94db97eba74ae3d9e5d4c4c57c42f1f41531c09a26bcc771a"
+            }
+          ],
+          "licenseFiles": [
+            "paddleocr/licenses/LICENSE.PaddleOCR.txt"
+          ]
         }
       ]
     },

@@ -43,6 +43,58 @@ They do not license Kizuna's own source code.
 - The required copyright, redistribution terms, and no-warranty paragraphs
   accompany the dictionary in `mecab/ipadic/COPYING`.
 
+## PaddleOCR and the Windows OCR runtime
+
+- Build: `ppocr.exe` compiled from PaddleOCR `v3.7.0`'s `deploy/cpp_infer`
+  with MSVC 19.42 (Visual Studio 2022 Build Tools), Release x64. Unlike the
+  other Windows components this binary is built here, not redistributed from
+  an upstream release; `scripts/build-paddleocr-win-x64.ps1` is the recipe.
+- Copyright © PaddlePaddle Authors; Apache-2.0
+  (`paddleocr/licenses/LICENSE.PaddleOCR.txt`).
+- The redistributed shared libraries and their terms:
+  - `paddle_inference.dll`, `phi.dll`, `common.dll` — Paddle Inference 3.2.0,
+    Apache-2.0 (`paddleocr/licenses/LICENSE.Paddle.txt`).
+  - `mkldnn.dll` — oneDNN 3.6.2, Apache-2.0
+    (`paddleocr/licenses/LICENSE.oneDNN.txt`, with its bundled third-party
+    notices in `paddleocr/licenses/THIRD-PARTY-PROGRAMS.oneDNN.txt`).
+  - `mklml.dll` and `libiomp5md.dll` — Intel MKL small libraries
+    `2019.0.5.20190502`, Copyright © 2018 Intel Corporation, under the Intel
+    Simplified Software License (April 2018). That license requires the
+    copyright notice and its terms of use to travel with the software, so
+    both `paddleocr/licenses/LICENSE.Intel-MKLML.txt` and
+    `paddleocr/licenses/THIRD-PARTY-PROGRAMS.Intel-MKLML.txt` must be
+    reproduced in any redistribution.
+  - `opencv_world4100.dll` — OpenCV 4.10.0, Apache-2.0
+    (`paddleocr/licenses/LICENSE.OpenCV.txt`).
+  - `abseil_dll.dll` — Abseil, Apache-2.0
+    (`paddleocr/licenses/LICENSE.Abseil.txt`).
+  - `polyclipping.dll` — Clipper 6.4.2, Boost Software License 1.0
+    (`paddleocr/licenses/LICENSE.Clipper.txt`).
+  - `msvcp140.dll`, `vcruntime140.dll`, `vcruntime140_1.dll`,
+    `concrt140.dll`, and `vcomp140.dll` — Microsoft distributable code,
+    recorded in `paddleocr/licenses/README.Microsoft-runtime.txt`.
+- Linked into `ppocr.exe`: glog and gflags (BSD-3-Clause), protobuf
+  (BSD-3-Clause), xxHash (BSD-2-Clause), yaml-cpp and nlohmann/json (MIT), and
+  the tronkko `dirent` compatibility header (MIT, Copyright © 1998-2019 Toni
+  Ronkko). Their texts accompany the payload under `paddleocr/licenses/`.
+- The Paddle Inference package ships no license or notice files of its own.
+  Components statically linked inside `paddle_inference.dll` are covered by
+  PaddlePaddle's Apache-2.0 distribution and are not separately enumerated
+  here; review that if the payload is redistributed outside Kizuna.
+- No mirrored Apache-2.0 component ships an upstream `NOTICE` file, so no
+  additional attribution notice is required beyond the license texts.
+
+## PP-OCRv5 models
+
+- Detection `PP-OCRv5_mobile_det` and recognition `PP-OCRv5_mobile_rec`,
+  redistributed unmodified from PaddlePaddle's official inference archives.
+- Copyright © PaddlePaddle Authors; released with PaddleOCR under Apache-2.0
+  (`paddleocr/licenses/LICENSE.PaddleOCR.txt`).
+- PP-OCRv5 recognition handles Simplified Chinese, Traditional Chinese,
+  English, Japanese, and Pinyin in one model. Kizuna uses it for Japanese; the
+  other scripts are an inseparable property of the weights, not an added
+  language payload.
+
 The software is supplied without warranty under the terms of its respective
 license. This file is compliance documentation, not legal advice.
 

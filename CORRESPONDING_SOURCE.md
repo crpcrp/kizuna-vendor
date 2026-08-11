@@ -32,6 +32,54 @@ file and the adjacent license files with every redistribution.
 - [IPADIC source archive](https://github.com/shogo82148/mecab/releases/download/v0.996.13/mecab-ipadic-2.7.0-20070801.tar.gz)
   (`SHA-256 74130f44264ce5b8cfa51e498b99345f71d2f854b74a9e9dfb6489e13e479e67`)
 
+## PaddleOCR 3.7.0 (Windows OCR runtime)
+
+Apache-2.0, MIT, BSD, and BSL-1.0 do not carry GPL's source-offer duty, but
+this payload is compiled here rather than mirrored, so the full build inputs
+are recorded and pinned in `scripts/build-paddleocr-win-x64.ps1`.
+
+- [PaddleOCR 3.7.0 source](https://github.com/PaddlePaddle/PaddleOCR/archive/refs/tags/v3.7.0.tar.gz)
+  (`SHA-256 8e5f1f9ba18c29621d38394b4f72925960640b315281391c3b3c86804f079a73`);
+  only `deploy/cpp_infer` is built.
+- [Paddle Inference 3.2.0 Windows CPU AVX MKL package](https://paddle-inference-lib.bj.bcebos.com/3.2.0/cxx_c/Windows/CPU/x86-64_avx-mkl-vs2019/paddle_inference.zip)
+  (`SHA-256 23a2ea41abaedb7dfb928dc10baa72975d50b7a8ffe28f8e081a16a8977a95b2`),
+  built from [Paddle `e22e2f9a`](https://github.com/PaddlePaddle/Paddle/tree/e22e2f9af7eeced7e3c9582ddb69a617887d3eb9)
+- [OpenCV 4.10.0 Windows package](https://github.com/opencv/opencv/releases/download/4.10.0/opencv-4.10.0-windows.exe)
+  (`SHA-256 bff38466091c313dac21a0b73eea8278316a89c1d434c6f0b10697e087670168`),
+  built from [OpenCV 4.10.0](https://github.com/opencv/opencv/tree/4.10.0)
+- [tronkko/dirent 1.24](https://github.com/tronkko/dirent/tree/1.24)
+  (`SHA-256 7383044a375d481ac8ad7ec2f43151263eca792f085001a8020cc590114a06a6`
+  for `include/dirent.h`)
+- Abseil, Clipper 6.4.2, and nlohmann/json come from `deploy/cpp_infer`'s own
+  `third_party` tree and its configure-time fetch.
+- Toolchain: MSVC 19.42.34433 (Visual Studio 2022 Build Tools v143), CMake
+  generator `Visual Studio 17 2022`, architecture x64, configuration Release,
+  with `WITH_MKL=ON`, `WITH_GPU=OFF`, and `WITH_STATIC_LIB=ON`.
+
+The only deviation from upstream source is an added include directory holding
+the `dirent.h` shim, because PaddleOCR 3.7.0's `src/utils/utility.cc` includes
+that POSIX header and MSVC does not ship one. No PaddleOCR file is edited.
+`mklml.dll` and `libiomp5md.dll` inside the Paddle Inference package are
+byte-identical to Intel's
+[`mklml_win_2019.0.5.20190502.zip`](https://paddlepaddledeps.bj.bcebos.com/mklml_win_2019.0.5.20190502.zip)
+(`SHA-256 535857b17643d7f7546b58fc621244e7cfcc4fff2aa2ebd3fc5b4e126bfc36cf`),
+and `opencv_world4100.dll` is byte-identical to the OpenCV package's copy;
+both were checked when this payload was built. Repeat those checks whenever
+the payload changes.
+
+## PP-OCRv5 models
+
+- [Detection `PP-OCRv5_mobile_det`](https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/PP-OCRv5_mobile_det_infer.tar)
+  (`SHA-256 50446e5d01ac2a73d5319c89513281f6578414c888c602f9af13f93feefffc58`)
+- [Recognition `PP-OCRv5_mobile_rec`](https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/PP-OCRv5_mobile_rec_infer.tar)
+  (`SHA-256 566b9512b34e34a9f0db54d87b51fa5a0b9ed2cf1ab7e49728cc0b8b5a64f414`)
+- Both are extracted unmodified; the mirrored `inference.json`,
+  `inference.pdiparams`, and `inference.yml` files match the archives.
+- The unmirrored `server` pair is pinned in `manifest.json` should a future
+  change prefer accuracy over size.
+- Model training recipes and configuration live with
+  [PaddleOCR 3.7.0](https://github.com/PaddlePaddle/PaddleOCR/tree/v3.7.0).
+
 For each future binary update, archive the exact source, build scripts, patches,
 configuration, and license texts beside the binary release; update all hashes.
 The GPL components must remain available for as long as their object code is

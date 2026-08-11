@@ -3,6 +3,11 @@
 *.bin filter=lfs diff=lfs merge=lfs -text
 *.dic filter=lfs diff=lfs merge=lfs -text
 
+paddleocr/models/**/inference.pdiparams filter=lfs diff=lfs merge=lfs -text
+paddleocr/models/**/inference.json -text
+paddleocr/models/**/inference.yml -text
+paddleocr/licenses/* -text
+
 linux-x64/mpv/bin/mpv filter=lfs diff=lfs merge=lfs -text
 linux-x64/ffmpeg/bin/ffmpeg filter=lfs diff=lfs merge=lfs -text
 linux-x64/ffmpeg/bin/ffprobe filter=lfs diff=lfs merge=lfs -text

@@ -55,8 +55,44 @@ foreach ($relative in $expected.Keys | Sort-Object) {
 }
 Write-Host "Checked $($expected.Count) files, $failures problem(s)"
 
+# Kizuna reads manifest.json with JSON.parse and rejects any paddleocr path
+# whose manifest hash disagrees with what it staged, so both failures belong
+# here rather than in someone's `npm run resources`. Windows PowerShell writes
+# a BOM by default, and JSON.parse will not accept one.
+Write-Host ''
+Write-Host '== manifest.json =='
+$manifestPath = Join-Path $RepoRoot 'manifest.json'
+$manifestBytes = [System.IO.File]::ReadAllBytes($manifestPath)
+if ($manifestBytes.Length -ge 3 -and $manifestBytes[0] -eq 0xEF -and
+    $manifestBytes[1] -eq 0xBB -and $manifestBytes[2] -eq 0xBF) {
+    Write-Host 'BOM  manifest.json starts with a UTF-8 byte order mark'
+    $failures++
+}
+$manifest = [System.Text.Encoding]::UTF8.GetString($manifestBytes) | ConvertFrom-Json
+$recorded = 0
+foreach ($component in $manifest.payloads |
+        Where-Object { $_.platform -eq 'win32' } | ForEach-Object { $_.components }) {
+    foreach ($entry in $component.files) {
+        if ($entry.path -notlike 'paddleocr/*') { continue }
+        $recorded++
+        if ($expected[$entry.path] -ne $entry.sha256) {
+            Write-Host "STALE    $($entry.path) (manifest disagrees with SHA256SUMS.txt)"
+            $failures++
+        }
+    }
+    foreach ($licensePath in $component.licenseFiles) {
+        if ($licensePath -notlike 'paddleocr/*') { continue }
+        $recorded++
+        if (-not $expected.ContainsKey($licensePath)) {
+            Write-Host "UNLISTED $licensePath (not in SHA256SUMS.txt)"
+            $failures++
+        }
+    }
+}
+Write-Host "Cross-checked $recorded manifest entries"
+
 # A payload whose bytes are wrong will not produce a meaningful latency number.
-if ($failures -gt 0) { throw "$failures checksum problem(s); not running the worker" }
+if ($failures -gt 0) { throw "$failures payload problem(s); not running the worker" }
 
 function Wait-Line {
     param(

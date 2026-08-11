@@ -47,8 +47,16 @@ They do not license Kizuna's own source code.
 
 - Build: `paddleocr.exe` combines Kizuna's GPL-3.0-or-later worker entrypoint
   with PaddleOCR `v3.7.0`'s `deploy/cpp_infer`, compiled with the installed
-  MSVC v143 (Visual Studio 2022 Build Tools), Release x64. The worker source,
-  patch, and recipe are under `paddleocr/worker/` and `scripts/`.
+  MSVC v143 (Visual Studio 2022 Build Tools), Release x64.
+- The whole executable is therefore conveyed under GPL-3.0-or-later; its
+  license text is `paddleocr/licenses/LICENSE.GPLv3.txt`. Apache-2.0 is
+  one-way compatible with GPLv3, so the Apache-2.0 and permissive components
+  keep their own terms inside it while the combined binary is GPL. Whoever
+  ships `paddleocr.exe` must offer its corresponding source: the worker itself
+  is `paddleocr/worker/paddleocr_worker.cc`, and the scripts and installation
+  information that build it are `scripts/build-paddleocr-win-x64.ps1` and
+  `CORRESPONDING_SOURCE.md`. The shared libraries beside it are separate
+  works, not derived from the worker.
 - Copyright © PaddlePaddle Authors; Apache-2.0
   (`paddleocr/licenses/LICENSE.PaddleOCR.txt`).
 - The redistributed shared libraries and their terms:

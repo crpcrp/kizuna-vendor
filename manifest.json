@@ -1,4 +1,4 @@
-﻿{
+{
   "schemaVersion": 2,
   "payloads": [
     {
@@ -215,6 +215,10 @@
               "sha256": "30e840f4fefca21be742892b3f039698fdaf741cac32346ead8d1888c9a6faff"
             },
             {
+              "path": "paddleocr/bin/common.dll",
+              "sha256": "14aeb242647aadd69b4bb2940770563497b9213ca64957451bb59ab1734c2d6d"
+            },
+            {
               "path": "paddleocr/bin/opencv_world4100.dll",
               "sha256": "e6e31e55b9b377b775782c4b27a80b2460dffe3dbee7898e034d25729dca0198"
             },
@@ -225,6 +229,38 @@
             {
               "path": "paddleocr/bin/mkldnn.dll",
               "sha256": "3fcd796e77fa6e8e0d78b44bb339e33b5fa91c13140ee1725ce95b90ee02d45d"
+            },
+            {
+              "path": "paddleocr/bin/libiomp5md.dll",
+              "sha256": "bc9e17190505a3beda7feedd90ba3ab7b6dc3f7ca5d980b2140c53ae459fc5ae"
+            },
+            {
+              "path": "paddleocr/bin/abseil_dll.dll",
+              "sha256": "a5e0417b8d1e1d19d03cc9e866d2b41b02106a2e1b32b92b581dc845d8beb980"
+            },
+            {
+              "path": "paddleocr/bin/polyclipping.dll",
+              "sha256": "b0123d452edaae4605424d604db0da4882e3c70285d2788239898ad4d50876e7"
+            },
+            {
+              "path": "paddleocr/bin/msvcp140.dll",
+              "sha256": "9057d39b36b6c7d054865ee2bf9cde7a490fe3b01ec4e82514687e24f576269f"
+            },
+            {
+              "path": "paddleocr/bin/vcruntime140.dll",
+              "sha256": "da72e6677bd1bcd01c453c1998aaa19aeaf6659f4774cf6848409da8232a95b2"
+            },
+            {
+              "path": "paddleocr/bin/vcruntime140_1.dll",
+              "sha256": "26e470b29bed3d873e0c328186e53f95e9edbfe0b0fd0cda44743a0b1a04a828"
+            },
+            {
+              "path": "paddleocr/bin/concrt140.dll",
+              "sha256": "e2e4609c569c69f7b1686f6d0e81ce62187ac5df05e0247954500053b3c3de3f"
+            },
+            {
+              "path": "paddleocr/bin/vcomp140.dll",
+              "sha256": "036b9b3f7ece8dfd48aeccd77113721c5305043aaa9c64d1e72812252727aa7c"
             }
           ],
           "licenseFiles": [
@@ -245,7 +281,7 @@
             "paddleocr/licenses/LICENSE.xxHash.txt",
             "paddleocr/licenses/LICENSE.yaml-cpp.txt",
             "paddleocr/licenses/README.Microsoft-runtime.txt",
-            "mpv/LICENSE.GPLv3.txt"
+            "paddleocr/licenses/LICENSE.GPLv3.txt"
           ]
         },
         {
@@ -278,12 +314,20 @@
               "sha256": "afa1820cb16c1fd0dad589d0f8b389139061c1ef6d68019685fd07be997dda5b"
             },
             {
+              "path": "paddleocr/models/det/inference.yml",
+              "sha256": "98069072e1b6b37d727fd9d9f11725faa46d6ea0de012f2ed26caea011c37699"
+            },
+            {
               "path": "paddleocr/models/rec/inference.json",
-              "sha256": "8e6e12e5d42531840310977fffb58165bf889fc5061408c5a8afdb6985f47fcb"
+              "sha256": "24587345250c7332d0fc6f9a44e794d078cdaeb64c302fef906f325619de2569"
             },
             {
               "path": "paddleocr/models/rec/inference.pdiparams",
-              "sha256": "63853f062a5f4089befc16f565a68277618e0da5cb45468b49d11079de0ada77"
+              "sha256": "2460da90875937c94db97eba74ae3d9e5d4c4c57c42f1f41531c09a26bcc771a"
+            },
+            {
+              "path": "paddleocr/models/rec/inference.yml",
+              "sha256": "5dfeb2777f6d0db8177d8128a8acfcf6e6276dc4ac73ea3bf0dc06d6a5e85d8e"
             }
           ],
           "licenseFiles": [

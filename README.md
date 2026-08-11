@@ -67,12 +67,29 @@ mecab/bin/* + mecab/etc/mecabrc -> resources/mecab/
 mecab/ipadic/                   -> resources/mecab/ipadic/
 paddleocr/bin/*                 -> resources/paddleocr/
 paddleocr/models/               -> resources/paddleocr/models/
+paddleocr/licenses/             -> notices for the packaged build
 ```
 
 `paddleocr/` is a Windows-only payload. Keep `paddleocr.exe` and every DLL in
 one flat directory; the worker resolves its own DLLs from there. Its JSON-lines
 protocol is the contract implemented by Kizuna's `paddleWorker.ts`. The
-`models/det` and `models/rec` directories match Kizuna's resource paths.
+`models/det` and `models/rec` directories match Kizuna's resource paths, and
+each needs all three of its files: the worker refuses to start unless
+`inference.json`, `inference.pdiparams`, and `inference.yml` are present.
+
+Nothing else has to be prepared at package time. The fifteen files in `bin/`
+are the complete runtime closure — everything they import that is not in that
+directory is a Windows system DLL — and `manifest.json` records a SHA-256 for
+every one of them plus every model file, so a truncated copy fails Kizuna's
+`resources.lock.json` cross-check instead of shipping. The one host requirement
+beyond a 64-bit AVX CPU is Media Foundation: `opencv_world4100.dll` imports
+`mf.dll`, `mfplat.dll`, and `mfreadwrite.dll`, which are absent on Windows N
+editions until the Media Feature Pack is installed.
+
+`paddleocr/worker/` travels with the payload because `paddleocr.exe` is
+GPL-3.0-or-later and that directory is its corresponding source. It is not a
+runtime file and does not need to be staged into `resources/`, but whoever
+ships the executable has to keep the source offer available.
 
 PP-OCRv5 recognition covers Simplified Chinese, Traditional Chinese, English,
 Japanese, and Pinyin in a single model; there is no Japanese-specific weight
@@ -92,8 +109,10 @@ text is on screen rather than the screen's resolution.
 Unlike the other Windows components, this payload is built from source rather
 than extracted from an upstream release. It is built and verified on a developer
 machine and committed through Git LFS; no CI job builds or checks it, because
-both need a Windows host that has already pulled the whole payload. Rebuild it
-on a Windows x64 host with Visual Studio 2022 Build Tools and 7-Zip:
+both need a Windows host that has already pulled the whole payload. The publish
+workflow only repackages what was committed here, so nothing about this binary
+is ever produced by GitHub. Rebuild it on a Windows x64 host with Visual Studio
+2022 Build Tools and 7-Zip:
 
 ```powershell
 ./scripts/build-paddleocr-win-x64.ps1
@@ -169,8 +188,9 @@ its upstream terms:
   Intel MKL small libraries use the Intel Simplified Software License, and the
   Microsoft runtime files use Microsoft's distributable-code terms. All texts
   are in `paddleocr/licenses/`.
-- Kizuna's persistent PaddleOCR worker: GPL-3.0-or-later; the source is under
-  `paddleocr/worker/` and the license text is `mpv/LICENSE.GPLv3.txt`.
+- Kizuna's persistent PaddleOCR worker, and therefore the `paddleocr.exe` it is
+  linked into: GPL-3.0-or-later. The source is under `paddleocr/worker/` and
+  the license text is `paddleocr/licenses/LICENSE.GPLv3.txt`.
 
 See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and
 [CORRESPONDING_SOURCE.md](CORRESPONDING_SOURCE.md) before redistributing these

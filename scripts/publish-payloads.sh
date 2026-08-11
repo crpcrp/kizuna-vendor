@@ -127,12 +127,10 @@ pack() {
 
 trees_for() {
   case "$1" in
-    win32-x64)
-      # paddleocr is only present once its payload has landed.
-      local dirs=(ffmpeg mecab mpv)
-      [ -d paddleocr ] && dirs+=(paddleocr)
-      printf '%s\n' "${dirs[@]}"
-      ;;
+    # Every tree is mandatory. A Windows archive missing paddleocr/ would
+    # extract cleanly and only fail later, in a Kizuna build, as a pile of
+    # missing files; tar reports it here instead.
+    win32-x64) printf '%s\n' ffmpeg mecab mpv paddleocr ;;
     linux-x64) printf '%s\n' linux-x64 ;;
   esac
 }

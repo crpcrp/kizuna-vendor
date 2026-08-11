@@ -4,8 +4,13 @@
 
 .DESCRIPTION
     Recomputes every paddleocr/ line in SHA256SUMS.txt and every "sha256" value
-    the win32 paddleocr component records in manifest.json, so both files match
-    whatever build-paddleocr-win-x64.ps1 just staged.
+    the win32 components record for a paddleocr/ path in manifest.json, so both
+    files match whatever build-paddleocr-win-x64.ps1 just staged.
+
+    Both the runtime component and the model component are refreshed, and every
+    staged file must be recorded by one of them. Kizuna cross-checks the
+    manifest against its own resources.lock.json, so a path this script leaves
+    behind is a payload Kizuna will reject rather than one it silently accepts.
 
     manifest.json is edited as text rather than round-tripped through
     ConvertTo-Json: Windows PowerShell 5.1 reflows and re-escapes the document,
@@ -54,27 +59,53 @@ $after = @($existing | Select-Object -Skip $firstPaddle | Where-Object { -not (&
     Set-Content -LiteralPath $sumsPath -Encoding ascii
 
 # manifest.json: update the sha256 that follows each recorded paddleocr path.
+# The models live in their own component, so selecting components by name would
+# quietly leave half the payload on a stale hash.
 $manifest = Get-Content -LiteralPath $manifestPath -Raw
-$component = (Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json).payloads |
+$components = @((Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json).payloads |
     Where-Object { $_.platform -eq 'win32' } |
     ForEach-Object { $_.components } |
-    Where-Object { $_.name -eq 'paddleocr' }
-if (-not $component) { throw 'manifest.json has no win32 paddleocr component' }
+    Where-Object { @($_.files.path) -like 'paddleocr/*' })
+if (-not $components) { throw 'manifest.json has no win32 component recording paddleocr files' }
 
 $updated = 0
-foreach ($entry in $component.files) {
-    if (-not $staged.Contains($entry.path)) {
-        throw "manifest.json records $($entry.path), which the build did not stage"
+$recorded = [System.Collections.Generic.HashSet[string]]::new()
+foreach ($component in $components) {
+    foreach ($entry in $component.files) {
+        if ($entry.path -notlike 'paddleocr/*') { continue }
+        if (-not $staged.Contains($entry.path)) {
+            throw "manifest.json records $($entry.path), which the build did not stage"
+        }
+        $pattern = '(?s)("path"\s*:\s*"' + [regex]::Escape($entry.path) + '"\s*,\s*"sha256"\s*:\s*")[^"]*(")'
+        $replaced = [regex]::Replace($manifest, $pattern, "`${1}$($staged[$entry.path])`${2}")
+        if ($replaced -eq $manifest -and $entry.sha256 -ne $staged[$entry.path]) {
+            throw "Could not rewrite the manifest hash for $($entry.path)"
+        }
+        $manifest = $replaced
+        [void]$recorded.Add($entry.path)
+        $updated++
     }
-    $pattern = '(?s)("path"\s*:\s*"' + [regex]::Escape($entry.path) + '"\s*,\s*"sha256"\s*:\s*")[^"]*(")'
-    $replaced = [regex]::Replace($manifest, $pattern, "`${1}$($staged[$entry.path])`${2}")
-    if ($replaced -eq $manifest -and $entry.sha256 -ne $staged[$entry.path]) {
-        throw "Could not rewrite the manifest hash for $($entry.path)"
-    }
-    $manifest = $replaced
-    $updated++
 }
-Set-Content -LiteralPath $manifestPath -Value $manifest -NoNewline -Encoding utf8
+
+# Anything staged but unrecorded travels in the payload without a manifest
+# entry Kizuna can cross-check. License texts are recorded by path only, so
+# they count as covered when they appear in a licenseFiles list.
+foreach ($component in @((Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json).payloads |
+        Where-Object { $_.platform -eq 'win32' } | ForEach-Object { $_.components })) {
+    foreach ($licensePath in $component.licenseFiles) { [void]$recorded.Add($licensePath) }
+}
+# The worker source is corresponding source for the GPL binary, not a runtime
+# file Kizuna stages; scripts/ and the notices record it instead.
+$unrecorded = @($staged.Keys | Where-Object {
+        -not $recorded.Contains($_) -and $_ -notlike 'paddleocr/worker/*'
+    })
+if ($unrecorded) {
+    throw "manifest.json records no entry for: $($unrecorded -join ', ')"
+}
+
+# Not Set-Content -Encoding utf8: Windows PowerShell 5.1 writes a BOM, and
+# Kizuna reads this file with JSON.parse, which rejects one outright.
+[System.IO.File]::WriteAllText($manifestPath, $manifest, [System.Text.UTF8Encoding]::new($false))
 
 if ($manifest.Contains('BUILD_OUTPUT_PENDING')) {
     throw 'manifest.json still carries a BUILD_OUTPUT_PENDING placeholder'

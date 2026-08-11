@@ -34,9 +34,14 @@ file and the adjacent license files with every redistribution.
 
 ## PaddleOCR 3.7.0 (Windows OCR runtime)
 
-Apache-2.0, MIT, BSD, and BSL-1.0 do not carry GPL's source-offer duty, but
-this payload is compiled here rather than mirrored, so the full build inputs
-are recorded and pinned in `scripts/build-paddleocr-win-x64.ps1`.
+`paddleocr.exe` is conveyed under GPL-3.0-or-later, so its corresponding
+source has to be available for as long as the binary is offered:
+`paddleocr/worker/paddleocr_worker.cc` is the worker itself, and
+`scripts/build-paddleocr-win-x64.ps1` is the script that controls compilation
+and installation, pinning every input by SHA-256. The libraries it links are
+Apache-2.0, MIT, BSD, and BSL-1.0 and carry no source-offer duty of their own,
+but this payload is compiled here rather than mirrored, so their build inputs
+are recorded below as well.
 
 - [PaddleOCR 3.7.0 source](https://github.com/PaddlePaddle/PaddleOCR/archive/refs/tags/v3.7.0.tar.gz)
   (`SHA-256 8e5f1f9ba18c29621d38394b4f72925960640b315281391c3b3c86804f079a73`);

@@ -1,4 +1,4 @@
-{
+﻿{
   "schemaVersion": 2,
   "payloads": [
     {
@@ -117,7 +117,7 @@
             "toolchain": "Latest installed MSVC v143 (Visual Studio 2022 Build Tools), Release x64",
             "patches": [
               "PaddleOCR 3.7.0 src/utils/utility.cc includes <dirent.h>, which MSVC does not provide. The build adds the header-only MIT shim from https://github.com/tronkko/dirent/tree/1.24 to the include path (SHA-256 7383044a375d481ac8ad7ec2f43151263eca792f085001a8020cc590114a06a6).",
-              "paddleocr/worker/paddleocr-cmake.patch replaces the one-shot CLI entrypoint with paddleocr/worker/paddleocr_worker.cc, a GPL-3.0-or-later persistent JSONL worker for Kizuna protocol v1."
+              "scripts/build-paddleocr-win-x64.ps1 redirects deploy/cpp_infer/CMakeLists.txt from its one-shot cli.cc entrypoint to paddleocr/worker/paddleocr_worker.cc, a GPL-3.0-or-later persistent JSONL worker for Kizuna protocol v1. The CMake target keeps its upstream name and the executable is renamed to paddleocr.exe when it is staged."
             ]
           },
           "bundledLibraries": [
@@ -204,7 +204,7 @@
           "files": [
             {
               "path": "paddleocr/bin/paddleocr.exe",
-              "sha256": "BUILD_OUTPUT_PENDING"
+              "sha256": "c660d80a8f07a0cca19a79eb3b2c2bc5da815f3b9465b96cdc49ef31c834b612"
             },
             {
               "path": "paddleocr/bin/paddle_inference.dll",
@@ -256,16 +256,16 @@
             "url": "https://github.com/PaddlePaddle/PaddleOCR/blob/v3.7.0/docs/version3.x/model_list.md",
             "detectionArchiveUrl": "https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/PP-OCRv5_mobile_det_infer.tar",
             "detectionArchiveSha256": "50446e5d01ac2a73d5319c89513281f6578414c888c602f9af13f93feefffc58",
-            "recognitionArchiveUrl": "https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/PP-OCRv5_server_rec_infer.tar",
-            "recognitionArchiveSha256": "d99be2ffd348943ab52876179168be4fb5b14f5f0812f2ae4c76d89ec2ea750a",
+            "recognitionArchiveUrl": "https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/PP-OCRv5_mobile_rec_infer.tar",
+            "recognitionArchiveSha256": "566b9512b34e34a9f0db54d87b51fa5a0b9ed2cf1ab7e49728cc0b8b5a64f414",
             "languageNote": "PP-OCRv5 recognition covers Simplified Chinese, Traditional Chinese, English, Japanese, and Pinyin in one model; no Japanese-specific weight file exists for this generation. There is no separate character dictionary because PIR-format models embed it.",
-            "selectionNote": "The mobile detector is paired with the server recognizer: detection is the dominant runtime cost, while the server recognizer preserves Japanese kanji accuracy.",
+            "selectionNote": "The all-mobile pair was chosen on measurement. Across four renderings of a 1920x1080 capture it read 19 of 20 Japanese lines at 1.6-2.0 s per frame; the server recognizer read 15 of 20 at 2.1-2.6 s. Detection is a flat ~0.5 s and recognition costs roughly 0.2 s per detected line, so latency tracks the amount of on-screen text rather than the capture resolution.",
             "alternatives": {
-              "note": "The all-mobile pair was faster but read 攻撃力 as 攻撃カ on the fixture. The all-server pair took about 5.3 seconds one-shot and cannot meet the interactive target.",
+              "note": "The server recognizer is recorded only because it was the previously shipped choice; on the Japanese fixture it is both slower and less accurate than the mobile one. The server detector is roughly six times slower than the mobile detector and was never viable for the keypress target.",
               "serverDetectionArchiveUrl": "https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/PP-OCRv5_server_det_infer.tar",
               "serverDetectionArchiveSha256": "22a33e0ba6a21425ea4192da03bf4395c9a0c67902bd924b7328fc859073045d",
-              "recognitionArchiveUrl": "https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/PP-OCRv5_mobile_rec_infer.tar",
-              "recognitionArchiveSha256": "566b9512b34e34a9f0db54d87b51fa5a0b9ed2cf1ab7e49728cc0b8b5a64f414"
+              "serverRecognitionArchiveUrl": "https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/PP-OCRv5_server_rec_infer.tar",
+              "serverRecognitionArchiveSha256": "d99be2ffd348943ab52876179168be4fb5b14f5f0812f2ae4c76d89ec2ea750a"
             }
           },
           "files": [

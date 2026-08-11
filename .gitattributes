@@ -4,6 +4,9 @@
 *.dic filter=lfs diff=lfs merge=lfs -text
 
 paddleocr/models/**/inference.pdiparams filter=lfs diff=lfs merge=lfs -text
+# Small enough for a plain blob, but it must survive byte for byte: the warm
+# latency and the recognized text are both measured against these exact pixels.
+scripts/testdata/*.png binary
 paddleocr/models/**/inference.json -text
 paddleocr/models/**/inference.yml -text
 paddleocr/licenses/* -text

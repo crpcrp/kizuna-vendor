@@ -7,11 +7,13 @@
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <fstream>
 #include <iostream>
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <unordered_map>
 #include <vector>
 
@@ -31,11 +33,50 @@ struct Options {
   std::string language;
   std::string detection_model;
   std::string recognition_model;
+  // Tuning knobs. The defaults are what Kizuna ships; they are exposed so the
+  // latency of a payload can be swept without rebuilding the worker.
+  std::string detection_model_name = "PP-OCRv5_mobile_det";
+  std::string recognition_model_name = "PP-OCRv5_mobile_rec";
+  int cpu_threads = 0;
+  int recognition_batch_size = 6;
+  int detection_side_length = 960;
+  // Recognition crops vary in width, so every frame presents oneDNN with fresh
+  // input shapes. PaddleOCR's default cache of 10 primitives thrashes and each
+  // region pays full primitive construction; a roomy cache keeps them warm.
+  int mkldnn_cache_capacity = 512;
 };
+
+int DefaultCpuThreads() {
+  const unsigned int cores = std::thread::hardware_concurrency();
+  if (cores == 0) {
+    return 8;
+  }
+  return static_cast<int>(std::min(cores, 16u));
+}
+
+// PaddleOCR's batch sampler dispatches on the file suffix and rejects anything
+// outside {jpg, jpeg, png, bmp}, so the temporary image has to be named after
+// the format the client actually sent.
+const char *SniffImageExtension(const std::string &bytes) {
+  const auto starts_with = [&bytes](const char *signature, size_t length) {
+    return bytes.size() >= length &&
+           std::memcmp(bytes.data(), signature, length) == 0;
+  };
+  if (starts_with("\x89PNG\r\n\x1a\n", 8)) {
+    return ".png";
+  }
+  if (starts_with("\xff\xd8\xff", 3)) {
+    return ".jpg";
+  }
+  if (starts_with("BM", 2)) {
+    return ".bmp";
+  }
+  return nullptr;
+}
 
 class TempFile {
 public:
-  explicit TempFile(const std::string &bytes) {
+  TempFile(const std::string &bytes, const char *extension) {
     char temp_path[MAX_PATH + 1] = {};
     char file_path[MAX_PATH + 1] = {};
     const DWORD temp_length = GetTempPathA(MAX_PATH, temp_path);
@@ -43,7 +84,10 @@ public:
         GetTempFileNameA(temp_path, "kzo", 0, file_path) == 0) {
       throw std::runtime_error("could not create a temporary image path");
     }
-    path_ = file_path;
+    // GetTempFileNameA reserves a .tmp placeholder; drop it and keep the
+    // suffixed name so the sampler recognises the file.
+    std::remove(file_path);
+    path_ = std::string(file_path) + extension;
     std::ofstream output(path_, std::ios::binary | std::ios::trunc);
     output.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
     if (!output) {
@@ -82,6 +126,18 @@ Options ParseOptions(int argc, char **argv) {
       options.detection_model = RequiredValue(argc, argv, index);
     } else if (name == "--rec-model") {
       options.recognition_model = RequiredValue(argc, argv, index);
+    } else if (name == "--det-model-name") {
+      options.detection_model_name = RequiredValue(argc, argv, index);
+    } else if (name == "--rec-model-name") {
+      options.recognition_model_name = RequiredValue(argc, argv, index);
+    } else if (name == "--cpu-threads") {
+      options.cpu_threads = std::stoi(RequiredValue(argc, argv, index));
+    } else if (name == "--rec-batch-size") {
+      options.recognition_batch_size = std::stoi(RequiredValue(argc, argv, index));
+    } else if (name == "--det-side-len") {
+      options.detection_side_length = std::stoi(RequiredValue(argc, argv, index));
+    } else if (name == "--mkldnn-cache") {
+      options.mkldnn_cache_capacity = std::stoi(RequiredValue(argc, argv, index));
     } else {
       throw std::runtime_error("unknown argument: " + name);
     }
@@ -89,8 +145,14 @@ Options ParseOptions(int argc, char **argv) {
 
   if (options.protocol_version != kProtocolVersion ||
       options.language != "japan" || options.detection_model.empty() ||
-      options.recognition_model.empty()) {
+      options.recognition_model.empty() ||
+      options.recognition_batch_size < 1 ||
+      options.detection_side_length < 32 ||
+      options.mkldnn_cache_capacity < 1) {
     throw std::runtime_error("invalid worker options");
+  }
+  if (options.cpu_threads < 1) {
+    options.cpu_threads = DefaultCpuThreads();
   }
   return options;
 }
@@ -126,9 +188,9 @@ void EmitError(const json *request = nullptr) {
 
 OCRPipelineParams MakePipelineParams(const Options &options) {
   OCRPipelineParams params;
-  params.text_detection_model_name = "PP-OCRv5_mobile_det";
+  params.text_detection_model_name = options.detection_model_name;
   params.text_detection_model_dir = options.detection_model;
-  params.text_recognition_model_name = "PP-OCRv5_server_rec";
+  params.text_recognition_model_name = options.recognition_model_name;
   params.text_recognition_model_dir = options.recognition_model;
   params.use_doc_orientation_classify = false;
   params.use_doc_unwarping = false;
@@ -136,56 +198,45 @@ OCRPipelineParams MakePipelineParams(const Options &options) {
   params.lang = options.language;
   params.ocr_version = "PP-OCRv5";
   params.enable_mkldnn = true;
-  params.cpu_threads = 8;
+  params.mkldnn_cache_capacity = options.mkldnn_cache_capacity;
+  params.cpu_threads = options.cpu_threads;
   params.thread_num = 1;
   params.paddlex_config = Utility::PaddleXConfigVariant(
       std::unordered_map<std::string, std::string>{
-      {"pipeline_name", "OCR"},
-      {"text_type", "general"},
-      {"use_doc_orientation_classify", "False"},
-      {"use_doc_unwarping", "False"},
-      {"use_textline_orientation", "False"},
-      {"SubModules.TextDetection.model_name", "PP-OCRv5_mobile_det"},
-      {"SubModules.TextDetection.model_dir", options.detection_model},
-      {"SubModules.TextDetection.batch_size", "1"},
-      {"SubModules.TextDetection.limit_side_len", "960"},
-      {"SubModules.TextDetection.limit_type", "max"},
-      {"SubModules.TextDetection.max_side_limit", "4000"},
-      {"SubModules.TextDetection.thresh", "0.3"},
-      {"SubModules.TextDetection.box_thresh", "0.6"},
-      {"SubModules.TextDetection.unclip_ratio", "1.5"},
-      {"SubModules.TextRecognition.model_name", "PP-OCRv5_server_rec"},
-      {"SubModules.TextRecognition.model_dir", options.recognition_model},
-          {"SubModules.TextRecognition.batch_size", "6"},
+          {"pipeline_name", "OCR"},
+          {"text_type", "general"},
+          {"use_doc_orientation_classify", "False"},
+          {"use_doc_unwarping", "False"},
+          {"use_textline_orientation", "False"},
+          {"SubModules.TextDetection.model_name", options.detection_model_name},
+          {"SubModules.TextDetection.model_dir", options.detection_model},
+          {"SubModules.TextDetection.batch_size", "1"},
+          {"SubModules.TextDetection.limit_side_len",
+           std::to_string(options.detection_side_length)},
+          {"SubModules.TextDetection.limit_type", "max"},
+          {"SubModules.TextDetection.max_side_limit", "4000"},
+          {"SubModules.TextDetection.thresh", "0.3"},
+          {"SubModules.TextDetection.box_thresh", "0.6"},
+          {"SubModules.TextDetection.unclip_ratio", "1.5"},
+          {"SubModules.TextRecognition.model_name",
+           options.recognition_model_name},
+          {"SubModules.TextRecognition.model_dir", options.recognition_model},
+          {"SubModules.TextRecognition.batch_size",
+           std::to_string(options.recognition_batch_size)},
           {"SubModules.TextRecognition.score_thresh", "0.0"}});
   return params;
 }
 
 void WarmUp(_OCRPipeline &pipeline) {
-  char temp_path[MAX_PATH + 1] = {};
-  char file_path[MAX_PATH + 1] = {};
-  const DWORD temp_length = GetTempPathA(MAX_PATH, temp_path);
-  if (temp_length == 0 || temp_length >= MAX_PATH ||
-      GetTempFileNameA(temp_path, "kzw", 0, file_path) == 0) {
-    throw std::runtime_error("could not create the warm-up image path");
+  cv::Mat image(96, 384, CV_8UC3, cv::Scalar(255, 255, 255));
+  cv::putText(image, "Kizuna 123", cv::Point(12, 64), cv::FONT_HERSHEY_SIMPLEX,
+              1.3, cv::Scalar(0, 0, 0), 2, cv::LINE_AA);
+  std::vector<uchar> encoded;
+  if (!cv::imencode(".png", image, encoded)) {
+    throw std::runtime_error("could not encode the warm-up image");
   }
-  std::remove(file_path);
-  const std::string warmup_path = std::string(file_path) + ".png";
-
-  try {
-    cv::Mat image(96, 384, CV_8UC3, cv::Scalar(255, 255, 255));
-    cv::putText(image, "Kizuna 123", cv::Point(12, 64),
-                cv::FONT_HERSHEY_SIMPLEX, 1.3, cv::Scalar(0, 0, 0), 2,
-                cv::LINE_AA);
-    if (!cv::imwrite(warmup_path, image)) {
-      throw std::runtime_error("could not write the warm-up image");
-    }
-    pipeline.Predict(std::vector<std::string>{warmup_path});
-  } catch (...) {
-    std::remove(warmup_path.c_str());
-    throw;
-  }
-  std::remove(warmup_path.c_str());
+  TempFile warmup(std::string(encoded.begin(), encoded.end()), ".png");
+  pipeline.Predict(std::vector<std::string>{warmup.path()});
 }
 
 json Recognize(_OCRPipeline &pipeline, const json &request) {
@@ -203,8 +254,12 @@ json Recognize(_OCRPipeline &pipeline, const json &request) {
   if (bytes.empty()) {
     throw std::runtime_error("image is empty");
   }
+  const char *extension = SniffImageExtension(bytes);
+  if (extension == nullptr) {
+    throw std::runtime_error("unsupported image format");
+  }
 
-  TempFile image(bytes);
+  TempFile image(bytes, extension);
   pipeline.Predict(std::vector<std::string>{image.path()});
   const std::vector<OCRPipelineResult> results = pipeline.PipelineResult();
   if (results.size() != 1) {

@@ -58,9 +58,12 @@ are recorded and pinned in `scripts/build-paddleocr-win-x64.ps1`.
   generator `Visual Studio 17 2022`, architecture x64, configuration Release,
   with `WITH_MKL=ON`, `WITH_GPU=OFF`, and `WITH_STATIC_LIB=ON`.
 
-The build adds the `dirent.h` shim include directory and applies
-`paddleocr/worker/paddleocr-cmake.patch` so PaddleOCR's source list uses the
-GPL-3.0-or-later Kizuna worker entrypoint instead of its one-shot CLI. The
+The build adds the `dirent.h` shim include directory and rewrites the `set(SRCS
+cli.cc )` line in `deploy/cpp_infer/CMakeLists.txt` to `set(SRCS
+kizuna_worker.cc )`, so PaddleOCR's source list uses the GPL-3.0-or-later
+Kizuna worker entrypoint instead of its one-shot CLI. The CMake target keeps
+its upstream `ppocr` name and the executable is renamed to `paddleocr.exe` when
+it is staged, which lets the build directory stay incremental across reruns. The
 worker constructs the pipeline configuration in memory, loads and warms the
 models once, and serves Kizuna protocol v1 until standard input closes.
 `mklml.dll` and `libiomp5md.dll` inside the Paddle Inference package are
@@ -75,13 +78,15 @@ the payload changes.
 
 - [Detection `PP-OCRv5_mobile_det`](https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/PP-OCRv5_mobile_det_infer.tar)
   (`SHA-256 50446e5d01ac2a73d5319c89513281f6578414c888c602f9af13f93feefffc58`)
-- [Recognition `PP-OCRv5_server_rec`](https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/PP-OCRv5_server_rec_infer.tar)
-  (`SHA-256 d99be2ffd348943ab52876179168be4fb5b14f5f0812f2ae4c76d89ec2ea750a`)
+- [Recognition `PP-OCRv5_mobile_rec`](https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/PP-OCRv5_mobile_rec_infer.tar)
+  (`SHA-256 566b9512b34e34a9f0db54d87b51fa5a0b9ed2cf1ab7e49728cc0b8b5a64f414`)
 - Both are extracted unmodified into `models/det` and `models/rec`; their
   `inference.json`,
   `inference.pdiparams`, and `inference.yml` files match the archives.
-- The mobile detector/server recognizer combination prioritizes the keypress
-  latency target without accepting the all-mobile recognizer's kanji errors.
+- The all-mobile pair was chosen over the server recognizer on measurement, not
+  on size: across four renderings of a 1920x1080 capture it read 19 of 20
+  Japanese lines at 1.6-2.0 s per frame against the server recognizer's 15 of
+  20 at 2.1-2.6 s.
 - Model training recipes and configuration live with
   [PaddleOCR 3.7.0](https://github.com/PaddlePaddle/PaddleOCR/tree/v3.7.0).
 

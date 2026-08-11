@@ -43,20 +43,33 @@ protocol is the contract implemented by Kizuna's `paddleWorker.ts`. The
 PP-OCRv5 recognition covers Simplified Chinese, Traditional Chinese, English,
 Japanese, and Pinyin in a single model; there is no Japanese-specific weight
 file for this generation and no separate character dictionary, because the
-PIR-format models embed it. Kizuna uses the mobile detector for interactive
-latency and the server recognizer for Japanese accuracy. This hybrid keeps the
-roughly sixfold detector speed advantage without the `攻撃力` to `攻撃カ`
-recognition regression measured with the all-mobile pair.
+PIR-format models embed it. Kizuna ships the mobile detector and the mobile
+recognizer. The server recognizer was measured against it on a 1920x1080
+capture rendered four ways: the mobile pair read 19 of 20 Japanese lines at
+1.6-2.0 s per frame, the server recognizer 15 of 20 at 2.1-2.6 s. It is both
+the faster and the more accurate choice here, so there is no tradeoff to
+balance.
+
+On a sixteen-core desktop the worker starts in about 0.6 s and then answers a
+full-screen 1080p capture in about 1.5 s. Detection is a flat ~0.5 s and
+recognition costs roughly 0.2 s per detected line, so latency tracks how much
+text is on screen rather than the screen's resolution.
 
 Unlike the other Windows components, this payload is built from source rather
-than extracted from an upstream release. Rebuild it on a Windows x64 host with
-Visual Studio 2022 Build Tools and 7-Zip, then verify it:
+than extracted from an upstream release. It is built on a developer machine and
+committed through Git LFS; CI verifies the committed binary but never builds it.
+Rebuild it on a Windows x64 host with Visual Studio 2022 Build Tools and 7-Zip:
 
 ```powershell
 ./scripts/build-paddleocr-win-x64.ps1
-git lfs pull
 ./scripts/verify-paddleocr-win-x64.ps1
 ```
+
+The build script caches its ~1.4 GB of dependencies under `C:\kzb`, so the
+first run takes roughly ten minutes and later runs that only change
+`paddleocr/worker/paddleocr_worker.cc` finish in well under a minute. It
+refreshes `SHA256SUMS.txt` and `manifest.json` itself. Pass `-Clean` to rebuild
+from scratch after changing a pinned version.
 
 The build script verifies every downloaded archive before use, including the
 three archives PaddleOCR's CMake normally fetches at configure time. It builds

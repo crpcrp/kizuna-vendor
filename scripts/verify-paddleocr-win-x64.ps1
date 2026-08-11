@@ -4,12 +4,24 @@
 
 .DESCRIPTION
     Checks every payload file against SHA256SUMS.txt, starts the persistent
-    worker, sends two Japanese recognition requests through the Kizuna JSONL
-    protocol, and checks that the second request completes within two seconds.
+    worker, and drives it through the Kizuna JSONL protocol with a committed
+    1920x1080 capture that stands in for a game screen. Reports the cold start
+    and the warm per-request latency, and fails if recognition is wrong or the
+    warm path exceeds -MaxWarmRecognitionMs.
+
+    The fixture is a committed PNG rather than text drawn at run time: rendering
+    it locally would make the result depend on which Japanese fonts happen to be
+    installed, and a hosted runner has none of them.
+
+.PARAMETER MaxWarmRecognitionMs
+    Warm-path budget. The default reflects a developer desktop. Hosted runners
+    have a quarter of the cores and are several times slower, so CI should pass
+    a looser ceiling; the measured numbers are always printed either way.
 #>
 [CmdletBinding()]
 param(
-    [int]$MaxWarmRecognitionMs = 2000
+    [int]$MaxWarmRecognitionMs = 2500,
+    [int]$Repetitions = 4
 )
 
 $ErrorActionPreference = 'Stop'
@@ -43,6 +55,9 @@ foreach ($relative in $expected.Keys | Sort-Object) {
 }
 Write-Host "Checked $($expected.Count) files, $failures problem(s)"
 
+# A payload whose bytes are wrong will not produce a meaningful latency number.
+if ($failures -gt 0) { throw "$failures checksum problem(s); not running the worker" }
+
 function Wait-Line {
     param(
         [System.IO.StreamReader]$Reader,
@@ -62,33 +77,29 @@ function Quote-Argument {
 
 Write-Host ''
 Write-Host '== Persistent worker =='
-$fixture = Join-Path ([System.IO.Path]::GetTempPath()) 'kizuna-paddleocr-fixture.png'
-$fixtureText = -join @(
-    [char]0x4eca, [char]0x65e5, [char]0x306f, [char]0x3044, [char]0x3044,
-    [char]0x5929, [char]0x6c17, [char]0x3067, [char]0x3059, [char]0x306d,
-    [char]0x3002
+$fixture = Join-Path $PSScriptRoot 'testdata\game-capture-1080p.png'
+if (-not (Test-Path -LiteralPath $fixture)) { throw "Missing the OCR fixture at $fixture" }
+# The lines drawn into the fixture, in top-to-bottom order.
+$expectedLines = @(
+    -join @([char]0x4eca, [char]0x65e5, [char]0x306f, [char]0x3044, [char]0x3044,
+            [char]0x5929, [char]0x6c17, [char]0x3067, [char]0x3059, [char]0x306d, [char]0x3002)
+    -join @([char]0x653b, [char]0x6483, [char]0x529b, [char]0x304c, [char]0x4e0a,
+            [char]0x304c, [char]0x3063, [char]0x305f, [char]0xff01)
+    -join @([char]0x30ec, [char]0x30d9, [char]0x30eb, [char]0x30a2, [char]0x30c3,
+            [char]0x30d7, [char]0x3057, [char]0x307e, [char]0x3057, [char]0x305f, [char]0x3002)
+    -join @([char]0x6b21, [char]0x306e, [char]0x753a, [char]0x3078, [char]0x5411,
+            [char]0x304b, [char]0x3044, [char]0x307e, [char]0x3057, [char]0x3087, [char]0x3046, [char]0x3002)
+    -join @([char]0x4ed8, [char]0x8fd1, [char]0x306e, [char]0x5b9d, [char]0x7bb1,
+            [char]0x3092, [char]0x958b, [char]0x3051, [char]0x308b, [char]0x3002)
 )
-
-Add-Type -AssemblyName System.Drawing
-$bitmap = New-Object System.Drawing.Bitmap 900, 130
-$graphics = [System.Drawing.Graphics]::FromImage($bitmap)
-$font = New-Object System.Drawing.Font('Yu Gothic UI', 40)
-try {
-    $graphics.Clear([System.Drawing.Color]::White)
-    $graphics.TextRenderingHint = 'AntiAliasGridFit'
-    $graphics.DrawString($fixtureText, $font, [System.Drawing.Brushes]::Black, 30, 30)
-    $bitmap.Save($fixture, [System.Drawing.Imaging.ImageFormat]::Png)
-} finally {
-    $font.Dispose()
-    $graphics.Dispose()
-    $bitmap.Dispose()
-}
 
 $worker = Join-Path $Payload 'bin\paddleocr.exe'
 $detModel = Join-Path $Payload 'models\det'
 $recModel = Join-Path $Payload 'models\rec'
 $startInfo = New-Object System.Diagnostics.ProcessStartInfo
 $startInfo.FileName = $worker
+# Exactly the argument list Kizuna's buildPaddleOcrWorkerArgs produces, so this
+# exercises the shipped defaults rather than a tuned configuration.
 $startInfo.Arguments = @(
     '--protocol-version', '1', '--lang', 'japan',
     '--det-model', (Quote-Argument $detModel),
@@ -105,33 +116,36 @@ $startInfo.StandardErrorEncoding = $utf8
 
 $process = New-Object System.Diagnostics.Process
 $process.StartInfo = $startInfo
+$coldTimer = [System.Diagnostics.Stopwatch]::StartNew()
 if (-not $process.Start()) { throw 'Could not start paddleocr.exe' }
 $stderrTask = $process.StandardError.ReadToEndAsync()
 
 try {
-    $ready = (Wait-Line $process.StandardOutput 15000 'the ready handshake') | ConvertFrom-Json
+    $ready = (Wait-Line $process.StandardOutput 60000 'the ready handshake') | ConvertFrom-Json
+    $coldTimer.Stop()
     if ($ready.version -ne 1 -or $ready.type -ne 'ready') {
         throw 'Worker returned an invalid ready handshake'
     }
+    Write-Host "Cold start (launch to ready, models loaded and warmed): $($coldTimer.ElapsedMilliseconds) ms"
 
     $imageBase64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($fixture))
     $times = @()
     $lastResult = $null
-    foreach ($requestId in 1..2) {
+    foreach ($requestId in 1..$Repetitions) {
         $request = @{
             version = 1
             type = 'recognize'
             requestId = $requestId
             sessionId = 1
             captureId = $requestId
-            imageSize = @{ width = 900; height = 130 }
+            imageSize = @{ width = 1920; height = 1080 }
             imageBase64 = $imageBase64
         } | ConvertTo-Json -Compress
 
         $timer = [System.Diagnostics.Stopwatch]::StartNew()
         $process.StandardInput.WriteLine($request)
         $process.StandardInput.Flush()
-        $lastResult = (Wait-Line $process.StandardOutput 30000 "result $requestId") | ConvertFrom-Json
+        $lastResult = (Wait-Line $process.StandardOutput 120000 "result $requestId") | ConvertFrom-Json
         $timer.Stop()
         $times += $timer.ElapsedMilliseconds
         if ($lastResult.version -ne 1 -or $lastResult.type -ne 'result' -or
@@ -141,25 +155,34 @@ try {
     }
 
     $recognized = ($lastResult.regions | ForEach-Object { $_.text }) -join ''
-    if ($recognized -notmatch [regex]::Escape($fixtureText.Substring(0, 5))) {
-        Write-Host "Did not recognize the Japanese fixture: $recognized"
+    $missing = @($expectedLines | Where-Object { $recognized -notlike "*$_*" })
+    if ($missing.Count -gt 0) {
+        Write-Host "Recognized: $recognized"
+        foreach ($line in $missing) { Write-Host "MISSING LINE  $line" }
         $failures++
     } else {
-        Write-Host 'Recognized the Japanese fixture twice in one process'
+        Write-Host "Recognized all $($expectedLines.Count) Japanese lines across $Repetitions requests in one process"
     }
-    Write-Host "First request:  $($times[0]) ms"
-    Write-Host "Second request: $($times[1]) ms"
-    if ($times[1] -gt $MaxWarmRecognitionMs) {
-        Write-Host "Warm recognition exceeded ${MaxWarmRecognitionMs} ms"
+
+    # The first request pays one-off allocation the warm path does not.
+    $warm = @($times | Select-Object -Skip 1)
+    $warmMedian = (@($warm | Sort-Object))[[int]([math]::Floor($warm.Count / 2))]
+    Write-Host "First request: $($times[0]) ms"
+    Write-Host "Warm requests: $($warm -join ', ') ms (median $warmMedian ms)"
+    if ($warmMedian -gt $MaxWarmRecognitionMs) {
+        Write-Host "Warm recognition median exceeded ${MaxWarmRecognitionMs} ms"
         $failures++
     }
 } finally {
     $process.StandardInput.Close()
     if (-not $process.WaitForExit(2000)) { $process.Kill() }
     $stderr = $stderrTask.Result
-    if ($stderr) { Write-Host "Worker stderr:`n$stderr" }
+    # Paddle logs a deprecation notice about the ONEDNN API on every start.
+    $noise = $stderr -split "`r?`n" | Where-Object {
+        $_ -ne '' -and $_ -notmatch 'InitGoogleLogging|api is deprecated since version'
+    }
+    if ($noise) { Write-Host "Worker stderr:`n$($noise -join "`n")" }
     $process.Dispose()
-    Remove-Item -LiteralPath $fixture -Force -ErrorAction SilentlyContinue
 }
 
 Write-Host ''

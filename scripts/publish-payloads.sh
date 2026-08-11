@@ -16,7 +16,11 @@
 #
 # Usage:
 #   scripts/publish-payloads.sh [--platform win32-x64|linux-x64|all]
-#                               [--tag <tag>] [--out <dir>] [--dry-run]
+#                               [--tag <tag>] [--out <dir>] [--dry-run] [--replace]
+#
+# Normally run through .github/workflows/publish-payloads.yml, which gets a
+# scoped GITHUB_TOKEN and leaves an audit trail. Running it locally needs a
+# GitHub CLI login with write access to this repository.
 #
 # Requires: bash, tar, gzip, sha256sum (or shasum), and the GitHub CLI for
 # anything other than --dry-run. Runs on Linux and in Git Bash on Windows; file
@@ -31,6 +35,7 @@ platform=all
 tag=""
 out_dir="dist"
 dry_run=0
+replace=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -38,7 +43,8 @@ while [ $# -gt 0 ]; do
     --tag) tag="${2:?--tag needs a value}"; shift 2 ;;
     --out) out_dir="${2:?--out needs a value}"; shift 2 ;;
     --dry-run) dry_run=1; shift ;;
-    -h|--help) sed -n '2,24p' "${BASH_SOURCE[0]}" | cut -c3-; exit 0 ;;
+    --replace) replace=1; shift ;;
+    -h|--help) sed -n '2,28p' "${BASH_SOURCE[0]}" | cut -c3-; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
@@ -170,9 +176,24 @@ if [ "$dry_run" -eq 1 ]; then
   exit 0
 fi
 
+# An asset that is already published may be pinned by a resources.lock.json
+# somewhere, and overwriting it would silently break every consumer holding that
+# hash. Replacing one is a deliberate act, not a retry default.
 echo
 if gh release view "$tag" >/dev/null 2>&1; then
-  echo "Release $tag already exists; uploading with --clobber"
+  published="$(gh release view "$tag" --json assets --jq '.assets[].name')"
+  collisions=()
+  for row in "${summary[@]}"; do
+    IFS='|' read -r _ asset _ _ <<<"$row"
+    if printf '%s\n' "$published" | grep -qx -- "$asset"; then collisions+=("$asset"); fi
+  done
+  if [ "${#collisions[@]}" -gt 0 ] && [ "$replace" -eq 0 ]; then
+    echo "Release $tag already carries: ${collisions[*]}" >&2
+    echo "Publish a new commit instead, or pass --replace if the existing asset" >&2
+    echo "is genuinely wrong and nothing has pinned it yet." >&2
+    exit 1
+  fi
+  echo "Release $tag already exists; adding assets"
 else
   echo "Creating release $tag at $commit"
   gh release create "$tag" \
@@ -187,7 +208,11 @@ fi
 
 for row in "${summary[@]}"; do
   IFS='|' read -r target asset digest size <<<"$row"
-  gh release upload "$tag" "$out_dir/$asset" --clobber
+  if [ "$replace" -eq 1 ]; then
+    gh release upload "$tag" "$out_dir/$asset" --clobber
+  else
+    gh release upload "$tag" "$out_dir/$asset"
+  fi
 done
 
 echo

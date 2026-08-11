@@ -55,8 +55,13 @@ while ($firstPaddle -lt $existing.Count -and -not (& $isPaddle $existing[$firstP
 }
 $before = @($existing[0..($firstPaddle - 1)] | Where-Object { $firstPaddle -gt 0 })
 $after = @($existing | Select-Object -Skip $firstPaddle | Where-Object { -not (& $isPaddle $_) })
-@($before) + @($paddleLines) + @($after) |
-    Set-Content -LiteralPath $sumsPath -Encoding ascii
+# LF, not Set-Content's CRLF: publish-payloads.sh packages the working tree, so
+# a file whose line endings differ from the committed ones would make the same
+# commit produce two different archive hashes depending on who packaged it.
+[System.IO.File]::WriteAllText(
+    $sumsPath,
+    ((@($before) + @($paddleLines) + @($after)) -join "`n") + "`n",
+    [System.Text.ASCIIEncoding]::new())
 
 # manifest.json: update the sha256 that follows each recorded paddleocr path.
 # The models live in their own component, so selecting components by name would

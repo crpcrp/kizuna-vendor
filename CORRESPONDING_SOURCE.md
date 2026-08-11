@@ -50,15 +50,19 @@ are recorded and pinned in `scripts/build-paddleocr-win-x64.ps1`.
 - [tronkko/dirent 1.24](https://github.com/tronkko/dirent/tree/1.24)
   (`SHA-256 7383044a375d481ac8ad7ec2f43151263eca792f085001a8020cc590114a06a6`
   for `include/dirent.h`)
-- Abseil, Clipper 6.4.2, and nlohmann/json come from `deploy/cpp_infer`'s own
-  `third_party` tree and its configure-time fetch.
-- Toolchain: MSVC 19.42.34433 (Visual Studio 2022 Build Tools v143), CMake
+- PaddleOCR's CMake dependencies are downloaded and verified before configure:
+  Abseil (`SHA-256 ab51954baa519cb2c11fb461b0bdfd32836779ff3f3e50e5b845b0c80374ed6a`),
+  Clipper 6.4.2 (`SHA-256 54ae753a24fcac5386416ea30ac1599cac60b00c27dab0d4f66696155b01e2be`),
+  and nlohmann/json (`SHA-256 e04437150e0f302346e41501a2c6c918e87f57a4b605b8770601c9d8cf2b541a`).
+- Toolchain: the installed MSVC v143 (Visual Studio 2022 Build Tools), CMake
   generator `Visual Studio 17 2022`, architecture x64, configuration Release,
   with `WITH_MKL=ON`, `WITH_GPU=OFF`, and `WITH_STATIC_LIB=ON`.
 
-The only deviation from upstream source is an added include directory holding
-the `dirent.h` shim, because PaddleOCR 3.7.0's `src/utils/utility.cc` includes
-that POSIX header and MSVC does not ship one. No PaddleOCR file is edited.
+The build adds the `dirent.h` shim include directory and applies
+`paddleocr/worker/paddleocr-cmake.patch` so PaddleOCR's source list uses the
+GPL-3.0-or-later Kizuna worker entrypoint instead of its one-shot CLI. The
+worker constructs the pipeline configuration in memory, loads and warms the
+models once, and serves Kizuna protocol v1 until standard input closes.
 `mklml.dll` and `libiomp5md.dll` inside the Paddle Inference package are
 byte-identical to Intel's
 [`mklml_win_2019.0.5.20190502.zip`](https://paddlepaddledeps.bj.bcebos.com/mklml_win_2019.0.5.20190502.zip)
@@ -69,14 +73,15 @@ the payload changes.
 
 ## PP-OCRv5 models
 
-- [Detection `PP-OCRv5_server_det`](https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/PP-OCRv5_server_det_infer.tar)
-  (`SHA-256 22a33e0ba6a21425ea4192da03bf4395c9a0c67902bd924b7328fc859073045d`)
+- [Detection `PP-OCRv5_mobile_det`](https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/PP-OCRv5_mobile_det_infer.tar)
+  (`SHA-256 50446e5d01ac2a73d5319c89513281f6578414c888c602f9af13f93feefffc58`)
 - [Recognition `PP-OCRv5_server_rec`](https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/PP-OCRv5_server_rec_infer.tar)
   (`SHA-256 d99be2ffd348943ab52876179168be4fb5b14f5f0812f2ae4c76d89ec2ea750a`)
-- Both are extracted unmodified; the mirrored `inference.json`,
+- Both are extracted unmodified into `models/det` and `models/rec`; their
+  `inference.json`,
   `inference.pdiparams`, and `inference.yml` files match the archives.
-- The unmirrored `mobile` pair is pinned in `manifest.json` should a future
-  change prefer size and speed over accuracy.
+- The mobile detector/server recognizer combination prioritizes the keypress
+  latency target without accepting the all-mobile recognizer's kanji errors.
 - Model training recipes and configuration live with
   [PaddleOCR 3.7.0](https://github.com/PaddlePaddle/PaddleOCR/tree/v3.7.0).
 

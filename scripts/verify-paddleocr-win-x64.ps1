@@ -1,14 +1,16 @@
-﻿<#
+<#
 .SYNOPSIS
     Verifies the Windows x64 PaddleOCR payload under paddleocr/.
 
 .DESCRIPTION
-    Checks every payload file against SHA256SUMS.txt, confirms the runtime
-    dependency closure resolves, and runs one Japanese recognition against a
-    generated fixture. Run after `git lfs pull` on a Windows x64 host.
+    Checks every payload file against SHA256SUMS.txt, starts the persistent
+    worker, sends two Japanese recognition requests through the Kizuna JSONL
+    protocol, and checks that the second request completes within two seconds.
 #>
 [CmdletBinding()]
-param()
+param(
+    [int]$MaxWarmRecognitionMs = 2000
+)
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
@@ -41,49 +43,123 @@ foreach ($relative in $expected.Keys | Sort-Object) {
 }
 Write-Host "Checked $($expected.Count) files, $failures problem(s)"
 
+function Wait-Line {
+    param(
+        [System.IO.StreamReader]$Reader,
+        [int]$TimeoutMs,
+        [string]$What
+    )
+    $task = $Reader.ReadLineAsync()
+    if (-not $task.Wait($TimeoutMs)) { throw "Timed out waiting for $What" }
+    if ($null -eq $task.Result) { throw "Worker exited before $What" }
+    return $task.Result
+}
+
+function Quote-Argument {
+    param([string]$Value)
+    return '"' + ($Value -replace '"', '\"') + '"'
+}
+
 Write-Host ''
-Write-Host '== Recognition =='
+Write-Host '== Persistent worker =='
 $fixture = Join-Path ([System.IO.Path]::GetTempPath()) 'kizuna-paddleocr-fixture.png'
+$fixtureText = -join @(
+    [char]0x4eca, [char]0x65e5, [char]0x306f, [char]0x3044, [char]0x3044,
+    [char]0x5929, [char]0x6c17, [char]0x3067, [char]0x3059, [char]0x306d,
+    [char]0x3002
+)
+
 Add-Type -AssemblyName System.Drawing
-$bmp = New-Object System.Drawing.Bitmap 900, 130
-$g = [System.Drawing.Graphics]::FromImage($bmp)
-$g.Clear([System.Drawing.Color]::White)
-$g.TextRenderingHint = 'AntiAliasGridFit'
+$bitmap = New-Object System.Drawing.Bitmap 900, 130
+$graphics = [System.Drawing.Graphics]::FromImage($bitmap)
 $font = New-Object System.Drawing.Font('Yu Gothic UI', 40)
-$g.DrawString('今日はいい天気ですね。', $font, [System.Drawing.Brushes]::Black, 30, 30)
-$g.Dispose()
-$bmp.Save($fixture, [System.Drawing.Imaging.ImageFormat]::Png)
-$bmp.Dispose()
-
-$env:GLOG_minloglevel = '3'
-# ppocr writes result files next to its working directory unless told
-# otherwise; keep them out of the payload.
-$savePath = Join-Path ([System.IO.Path]::GetTempPath()) 'kizuna-paddleocr-verify'
-Push-Location (Join-Path $Payload 'bin')
 try {
-    $output = & .\ppocr.exe ocr --input $fixture --lang japan --ocr_version PP-OCRv5 `
-        --text_detection_model_dir ..\models\PP-OCRv5_server_det_infer `
-        --text_detection_model_name PP-OCRv5_server_det `
-        --text_recognition_model_dir ..\models\PP-OCRv5_server_rec_infer `
-        --text_recognition_model_name PP-OCRv5_server_rec `
-        --use_doc_orientation_classify false --use_doc_unwarping false `
-        --use_textline_orientation false --save_path $savePath 2>&1 | Out-String
+    $graphics.Clear([System.Drawing.Color]::White)
+    $graphics.TextRenderingHint = 'AntiAliasGridFit'
+    $graphics.DrawString($fixtureText, $font, [System.Drawing.Brushes]::Black, 30, 30)
+    $bitmap.Save($fixture, [System.Drawing.Imaging.ImageFormat]::Png)
 } finally {
-    Pop-Location
+    $font.Dispose()
+    $graphics.Dispose()
+    $bitmap.Dispose()
+}
+
+$worker = Join-Path $Payload 'bin\paddleocr.exe'
+$detModel = Join-Path $Payload 'models\det'
+$recModel = Join-Path $Payload 'models\rec'
+$startInfo = New-Object System.Diagnostics.ProcessStartInfo
+$startInfo.FileName = $worker
+$startInfo.Arguments = @(
+    '--protocol-version', '1', '--lang', 'japan',
+    '--det-model', (Quote-Argument $detModel),
+    '--rec-model', (Quote-Argument $recModel)
+) -join ' '
+$startInfo.UseShellExecute = $false
+$startInfo.CreateNoWindow = $true
+$startInfo.RedirectStandardInput = $true
+$startInfo.RedirectStandardOutput = $true
+$startInfo.RedirectStandardError = $true
+$utf8 = New-Object System.Text.UTF8Encoding($false)
+$startInfo.StandardOutputEncoding = $utf8
+$startInfo.StandardErrorEncoding = $utf8
+
+$process = New-Object System.Diagnostics.Process
+$process.StartInfo = $startInfo
+if (-not $process.Start()) { throw 'Could not start paddleocr.exe' }
+$stderrTask = $process.StandardError.ReadToEndAsync()
+
+try {
+    $ready = (Wait-Line $process.StandardOutput 15000 'the ready handshake') | ConvertFrom-Json
+    if ($ready.version -ne 1 -or $ready.type -ne 'ready') {
+        throw 'Worker returned an invalid ready handshake'
+    }
+
+    $imageBase64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($fixture))
+    $times = @()
+    $lastResult = $null
+    foreach ($requestId in 1..2) {
+        $request = @{
+            version = 1
+            type = 'recognize'
+            requestId = $requestId
+            sessionId = 1
+            captureId = $requestId
+            imageSize = @{ width = 900; height = 130 }
+            imageBase64 = $imageBase64
+        } | ConvertTo-Json -Compress
+
+        $timer = [System.Diagnostics.Stopwatch]::StartNew()
+        $process.StandardInput.WriteLine($request)
+        $process.StandardInput.Flush()
+        $lastResult = (Wait-Line $process.StandardOutput 30000 "result $requestId") | ConvertFrom-Json
+        $timer.Stop()
+        $times += $timer.ElapsedMilliseconds
+        if ($lastResult.version -ne 1 -or $lastResult.type -ne 'result' -or
+            $lastResult.requestId -ne $requestId) {
+            throw "Worker returned an invalid result for request $requestId"
+        }
+    }
+
+    $recognized = ($lastResult.regions | ForEach-Object { $_.text }) -join ''
+    if ($recognized -notmatch [regex]::Escape($fixtureText.Substring(0, 5))) {
+        Write-Host "Did not recognize the Japanese fixture: $recognized"
+        $failures++
+    } else {
+        Write-Host 'Recognized the Japanese fixture twice in one process'
+    }
+    Write-Host "First request:  $($times[0]) ms"
+    Write-Host "Second request: $($times[1]) ms"
+    if ($times[1] -gt $MaxWarmRecognitionMs) {
+        Write-Host "Warm recognition exceeded ${MaxWarmRecognitionMs} ms"
+        $failures++
+    }
+} finally {
+    $process.StandardInput.Close()
+    if (-not $process.WaitForExit(2000)) { $process.Kill() }
+    $stderr = $stderrTask.Result
+    if ($stderr) { Write-Host "Worker stderr:`n$stderr" }
+    $process.Dispose()
     Remove-Item -LiteralPath $fixture -Force -ErrorAction SilentlyContinue
-    Remove-Item -LiteralPath $savePath -Recurse -Force -ErrorAction SilentlyContinue
-}
-
-if ($output -match '今日はいい天気ですね') {
-    Write-Host 'Recognized the Japanese fixture'
-} else {
-    Write-Host 'Did not recognize the Japanese fixture. Engine output:'
-    Write-Host $output
-    $failures++
-}
-
-if ($output -match 'Mkldnn is not available') {
-    Write-Host 'Note: oneDNN is off. PaddleOCR gates it on an Intel CPU brand string.'
 }
 
 Write-Host ''

@@ -1,0 +1,10 @@
+diff --git a/deploy/cpp_infer/CMakeLists.txt b/deploy/cpp_infer/CMakeLists.txt
+index c70bfe0..78ea30b 100644
+--- a/deploy/cpp_infer/CMakeLists.txt
++++ b/deploy/cpp_infer/CMakeLists.txt
+@@ -4,1 +4,1 @@
+-set(DEMO_NAME "ppocr")
++set(DEMO_NAME "paddleocr")
+@@ -264,1 +264,1 @@
+-set(SRCS cli.cc )
++set(SRCS kizuna_worker.cc)

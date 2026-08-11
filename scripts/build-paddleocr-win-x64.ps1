@@ -4,8 +4,8 @@
 
 .DESCRIPTION
     Downloads the pinned PaddleOCR source, Paddle Inference runtime, OpenCV
-    package, and PP-OCRv5 Japanese models; verifies every archive by SHA-256;
-    builds deploy/cpp_infer with MSVC; and stages the result into paddleocr/.
+    package, and PP-OCRv5 models; verifies every archive by SHA-256; builds the
+    persistent Kizuna worker with MSVC; and stages the result into paddleocr/.
 
     Run from a clean checkout on a Windows x64 host with Visual Studio 2022
     Build Tools (C++ x64 workload) and 7-Zip installed. Then verify:
@@ -52,9 +52,9 @@ $Archives = @(
         Sha256 = 'bff38466091c313dac21a0b73eea8278316a89c1d434c6f0b10697e087670168'
     },
     @{
-        Name   = 'PP-OCRv5_server_det_infer.tar'
-        Url    = 'https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/PP-OCRv5_server_det_infer.tar'
-        Sha256 = '22a33e0ba6a21425ea4192da03bf4395c9a0c67902bd924b7328fc859073045d'
+        Name   = 'PP-OCRv5_mobile_det_infer.tar'
+        Url    = 'https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/PP-OCRv5_mobile_det_infer.tar'
+        Sha256 = '50446e5d01ac2a73d5319c89513281f6578414c888c602f9af13f93feefffc58'
     },
     @{
         Name   = 'PP-OCRv5_server_rec_infer.tar'
@@ -67,6 +67,21 @@ $Archives = @(
         Name   = 'dirent.h'
         Url    = "https://raw.githubusercontent.com/tronkko/dirent/$DirentVersion/include/dirent.h"
         Sha256 = '7383044a375d481ac8ad7ec2f43151263eca792f085001a8020cc590114a06a6'
+    },
+    @{
+        Name   = 'abseil-cpp.tgz'
+        Url    = 'https://paddle-model-ecology.bj.bcebos.com/paddlex/cpp/libs/abseil-cpp.tgz'
+        Sha256 = 'ab51954baa519cb2c11fb461b0bdfd32836779ff3f3e50e5b845b0c80374ed6a'
+    },
+    @{
+        Name   = 'clipper_ver6.4.2.tgz'
+        Url    = 'https://paddle-model-ecology.bj.bcebos.com/paddlex/cpp/libs/clipper_ver6.4.2.tgz'
+        Sha256 = '54ae753a24fcac5386416ea30ac1599cac60b00c27dab0d4f66696155b01e2be'
+    },
+    @{
+        Name   = 'nlohmann.tgz'
+        Url    = 'https://paddle-model-ecology.bj.bcebos.com/paddlex/cpp/libs/nlohmann.tgz'
+        Sha256 = 'e04437150e0f302346e41501a2c6c918e87f57a4b605b8770601c9d8cf2b541a'
     }
 )
 
@@ -95,6 +110,8 @@ function Get-VerifiedArchive {
 }
 
 Assert-Tool -Path $SevenZip -What '7-Zip'
+$git = Get-Command git -ErrorAction SilentlyContinue
+if (-not $git) { throw 'Git is required to apply the pinned worker patch' }
 
 $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
 Assert-Tool -Path $vswhere -What 'vswhere'
@@ -123,9 +140,9 @@ foreach ($archive in $Archives) {
 Copy-Item -LiteralPath $paths['dirent.h'] -Destination (Join-Path $compat 'dirent.h') -Force
 
 $srcRoot = Join-Path $WorkRoot "PaddleOCR-$($PaddleOcrVersion.TrimStart('v'))"
-if (-not (Test-Path -LiteralPath $srcRoot)) {
-    & tar -xzf $paths['paddleocr-src.tar.gz'] -C $WorkRoot
-}
+Remove-Item -LiteralPath $srcRoot -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath $buildDir -Recurse -Force -ErrorAction SilentlyContinue
+& tar -xzf $paths['paddleocr-src.tar.gz'] -C $WorkRoot
 
 $paddleLib = Join-Path $WorkRoot 'paddle_inference'
 if (-not (Test-Path -LiteralPath $paddleLib)) {
@@ -139,6 +156,29 @@ if (-not (Test-Path -LiteralPath $opencvRoot)) {
 $opencvDir = Join-Path $opencvRoot 'opencv\build'
 
 $cppInfer = Join-Path $srcRoot 'deploy\cpp_infer'
+$thirdParty = Join-Path $cppInfer 'third_party'
+foreach ($package in @('abseil-cpp', 'clipper_ver6.4.2', 'nlohmann')) {
+    $destination = Join-Path $thirdParty $package
+    New-Item -ItemType Directory -Force -Path $destination | Out-Null
+    & tar -xzf $paths["${package}.tgz"] -C $destination
+    if ($LASTEXITCODE -ne 0) { throw "Failed to extract $package" }
+}
+
+$workerSource = Join-Path $Payload 'worker\paddleocr_worker.cc'
+$workerPatch = Join-Path $Payload 'worker\paddleocr-cmake.patch'
+Assert-Tool -Path $workerSource -What 'Kizuna PaddleOCR worker source'
+Assert-Tool -Path $workerPatch -What 'Kizuna PaddleOCR CMake patch'
+Copy-Item -LiteralPath $workerSource -Destination (Join-Path $cppInfer 'kizuna_worker.cc') -Force
+Push-Location $srcRoot
+try {
+    & git apply --unidiff-zero --check $workerPatch
+    if ($LASTEXITCODE -ne 0) { throw 'Kizuna PaddleOCR CMake patch does not apply' }
+    & git apply --unidiff-zero $workerPatch
+    if ($LASTEXITCODE -ne 0) { throw 'Could not apply the Kizuna PaddleOCR CMake patch' }
+} finally {
+    Pop-Location
+}
+
 $buildScript = Join-Path $WorkRoot 'run-build.bat'
 @"
 @echo off
@@ -154,13 +194,13 @@ cd /d "$cppInfer" || exit /b 1
 & cmd /c "`"$buildScript`""
 if ($LASTEXITCODE -ne 0) { throw "cpp_infer build failed with exit code $LASTEXITCODE" }
 
-# Runtime closure: ppocr.exe imports paddle_inference, opencv_world, abseil_dll
+# Runtime closure: paddleocr.exe imports paddle_inference, opencv_world, abseil_dll
 # and polyclipping; paddle_inference in turn pulls common, phi, mklml,
 # libiomp5md and mkldnn. opencv_world needs the VC CRT and mkldnn needs OpenMP.
 $vcRedist = Get-ChildItem (Join-Path $vsRoot 'VC\Redist\MSVC') -Directory |
     Where-Object { $_.Name -match '^\d+\.' } | Sort-Object Name -Descending | Select-Object -First 1
 $runtimeFiles = @(
-    (Join-Path $buildDir 'Release\ppocr.exe'),
+    (Join-Path $buildDir 'Release\paddleocr.exe'),
     (Join-Path $buildDir 'Release\mklml.dll'),
     (Join-Path $buildDir 'Release\mkldnn.dll'),
     (Join-Path $buildDir 'Release\libiomp5md.dll'),
@@ -188,10 +228,17 @@ foreach ($file in $runtimeFiles) {
     Copy-Item -LiteralPath $file -Destination $binOut -Force
 }
 
-foreach ($model in @('PP-OCRv5_server_det_infer', 'PP-OCRv5_server_rec_infer')) {
-    & tar -xf $paths["$model.tar"] -C $modelsOut
-}
+$detStage = Join-Path $stage 'PP-OCRv5_mobile_det_infer'
+$recStage = Join-Path $stage 'PP-OCRv5_server_rec_infer'
+Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Force -Path $stage | Out-Null
+& tar -xf $paths['PP-OCRv5_mobile_det_infer.tar'] -C $stage
+if ($LASTEXITCODE -ne 0) { throw 'Could not extract the detection model' }
+& tar -xf $paths['PP-OCRv5_server_rec_infer.tar'] -C $stage
+if ($LASTEXITCODE -ne 0) { throw 'Could not extract the recognition model' }
+Copy-Item -LiteralPath $detStage -Destination (Join-Path $modelsOut 'det') -Recurse
+Copy-Item -LiteralPath $recStage -Destination (Join-Path $modelsOut 'rec') -Recurse
 
 Write-Host ''
-Write-Host "Staged $($runtimeFiles.Count) runtime files and 2 models into $Payload"
+Write-Host "Staged $($runtimeFiles.Count) runtime files and the hybrid models into $Payload"
 Write-Host 'Regenerate SHA256SUMS.txt and manifest.json before committing.'

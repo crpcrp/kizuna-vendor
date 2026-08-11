@@ -1,0 +1,64 @@
+name: Build PaddleOCR payload
+
+on:
+  push:
+    branches: [codex/paddleocr-win-x64]
+    paths:
+      - .github/workflows/build-paddleocr-payload.yml
+      - paddleocr/worker/**
+      - scripts/build-paddleocr-win-x64.ps1
+      - scripts/verify-paddleocr-win-x64.ps1
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: true
+
+      - name: Build payload
+        shell: powershell
+        run: ./scripts/build-paddleocr-win-x64.ps1
+
+      - name: Refresh hashes
+        shell: pwsh
+        run: |
+          $binaryHash = (Get-FileHash paddleocr/bin/paddleocr.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          $manifest = Get-Content manifest.json -Raw
+          if (-not $manifest.Contains('BUILD_OUTPUT_PENDING')) {
+            throw 'manifest.json has no pending worker hash'
+          }
+          $manifest.Replace('BUILD_OUTPUT_PENDING', $binaryHash) |
+            Set-Content manifest.json -Encoding utf8
+
+          $otherLines = Get-Content SHA256SUMS.txt |
+            Where-Object { $_ -notmatch '^[0-9a-f]{64}\s+paddleocr/' }
+          $paddleLines = Get-ChildItem paddleocr -File -Recurse | ForEach-Object {
+            $relative = [IO.Path]::GetRelativePath($PWD.Path, $_.FullName).Replace('\', '/')
+            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $relative"
+          }
+          @($otherLines) + @($paddleLines) |
+            Sort-Object { ($_ -split '\s+', 2)[1] } |
+            Set-Content SHA256SUMS.txt -Encoding ascii
+
+      - name: Verify payload and warm latency
+        shell: powershell
+        run: ./scripts/verify-paddleocr-win-x64.ps1
+
+      - name: Commit generated payload
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git lfs install --local
+          git add paddleocr/bin paddleocr/models paddleocr/licenses SHA256SUMS.txt manifest.json
+          git commit -m "Build persistent PaddleOCR worker"
+          git lfs push origin HEAD
+          git push origin HEAD:${GITHUB_REF_NAME}

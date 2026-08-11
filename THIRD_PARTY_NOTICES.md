@@ -45,10 +45,10 @@ They do not license Kizuna's own source code.
 
 ## PaddleOCR and the Windows OCR runtime
 
-- Build: `ppocr.exe` compiled from PaddleOCR `v3.7.0`'s `deploy/cpp_infer`
-  with MSVC 19.42 (Visual Studio 2022 Build Tools), Release x64. Unlike the
-  other Windows components this binary is built here, not redistributed from
-  an upstream release; `scripts/build-paddleocr-win-x64.ps1` is the recipe.
+- Build: `paddleocr.exe` combines Kizuna's GPL-3.0-or-later worker entrypoint
+  with PaddleOCR `v3.7.0`'s `deploy/cpp_infer`, compiled with the installed
+  MSVC v143 (Visual Studio 2022 Build Tools), Release x64. The worker source,
+  patch, and recipe are under `paddleocr/worker/` and `scripts/`.
 - Copyright © PaddlePaddle Authors; Apache-2.0
   (`paddleocr/licenses/LICENSE.PaddleOCR.txt`).
 - The redistributed shared libraries and their terms:
@@ -73,7 +73,7 @@ They do not license Kizuna's own source code.
   - `msvcp140.dll`, `vcruntime140.dll`, `vcruntime140_1.dll`,
     `concrt140.dll`, and `vcomp140.dll` — Microsoft distributable code,
     recorded in `paddleocr/licenses/README.Microsoft-runtime.txt`.
-- Linked into `ppocr.exe`: glog and gflags (BSD-3-Clause), protobuf
+- Linked into `paddleocr.exe`: glog and gflags (BSD-3-Clause), protobuf
   (BSD-3-Clause), xxHash (BSD-2-Clause), yaml-cpp and nlohmann/json (MIT), and
   the tronkko `dirent` compatibility header (MIT, Copyright © 1998-2019 Toni
   Ronkko). Their texts accompany the payload under `paddleocr/licenses/`.
@@ -86,7 +86,7 @@ They do not license Kizuna's own source code.
 
 ## PP-OCRv5 models
 
-- Detection `PP-OCRv5_server_det` and recognition `PP-OCRv5_server_rec`,
+- Detection `PP-OCRv5_mobile_det` and recognition `PP-OCRv5_server_rec`,
   redistributed unmodified from PaddlePaddle's official inference archives.
 - Copyright © PaddlePaddle Authors; released with PaddleOCR under Apache-2.0
   (`paddleocr/licenses/LICENSE.PaddleOCR.txt`).

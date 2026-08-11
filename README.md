@@ -35,20 +35,18 @@ paddleocr/bin/*                 -> resources/paddleocr/
 paddleocr/models/               -> resources/paddleocr/models/
 ```
 
-`paddleocr/` is a Windows-only payload. Keep `ppocr.exe` and every DLL in one
-flat directory; the worker resolves its own DLLs from there. `models/` holds
-the PP-OCRv5 detection and recognition pair, selected by explicit
-`--text_detection_model_dir` and `--text_recognition_model_dir` arguments, so
-its location is free as long as both directories survive together.
+`paddleocr/` is a Windows-only payload. Keep `paddleocr.exe` and every DLL in
+one flat directory; the worker resolves its own DLLs from there. Its JSON-lines
+protocol is the contract implemented by Kizuna's `paddleWorker.ts`. The
+`models/det` and `models/rec` directories match Kizuna's resource paths.
 
 PP-OCRv5 recognition covers Simplified Chinese, Traditional Chinese, English,
 Japanese, and Pinyin in a single model; there is no Japanese-specific weight
 file for this generation and no separate character dictionary, because the
-PIR-format models embed it. The mirrored `server` pair is what
-`deploy/cpp_infer` selects by default for `lang=japan`. The lighter `mobile`
-pair is 21 MB against the server pair's 166 MB and roughly three times faster,
-but reads some kanji as their katakana homoglyphs, so `manifest.json` records
-its hashes without mirroring it.
+PIR-format models embed it. Kizuna uses the mobile detector for interactive
+latency and the server recognizer for Japanese accuracy. This hybrid keeps the
+roughly sixfold detector speed advantage without the `攻撃力` to `攻撃カ`
+recognition regression measured with the all-mobile pair.
 
 Unlike the other Windows components, this payload is built from source rather
 than extracted from an upstream release. Rebuild it on a Windows x64 host with
@@ -60,19 +58,19 @@ git lfs pull
 ./scripts/verify-paddleocr-win-x64.ps1
 ```
 
-The build script verifies every downloaded archive before use and pins the
-exact PaddleOCR tag, Paddle Inference build, OpenCV package, and model
-archives. PaddleOCR 3.7.0 does not compile under MSVC unmodified: its
-`src/utils/utility.cc` includes the POSIX `<dirent.h>`. The script supplies a
-header-only MIT shim on the include path and edits no PaddleOCR source.
+The build script verifies every downloaded archive before use, including the
+three archives PaddleOCR's CMake normally fetches at configure time. It builds
+`paddleocr/worker/paddleocr_worker.cc` against `deploy/cpp_infer` and applies
+the recorded CMake patch. A header-only MIT `dirent.h` shim is also required
+because MSVC does not provide PaddleOCR's POSIX header.
 
 Two runtime notes worth carrying into packaging:
 
-- `ppocr.exe` is a one-shot CLI. It loads both models, recognizes one image,
-  prints JSON, and exits, costing roughly 5 s per run on an 8-core desktop
-  with the server models. Nearly all of that is model load, so anything
-  wanting workable latency must link `deploy/cpp_infer`'s API and keep the
-  models resident instead of spawning this executable per capture.
+- `paddleocr.exe` loads and warms both models before its `ready` handshake,
+  then stays alive across captures. Model startup therefore happens while
+  Game OCR is armed, not after the capture shortcut. The verifier sends two
+  requests through the real protocol and requires the second to finish within
+  two seconds.
 - PaddleOCR gates oneDNN acceleration on an Intel CPU brand string
   (`Utility::IsMkldnnAvailable`), so AMD hosts silently fall back to the plain
   CPU backend. `mkldnn.dll` still ships because Intel hosts do use it.
@@ -123,6 +121,8 @@ its upstream terms:
   Intel MKL small libraries use the Intel Simplified Software License, and the
   Microsoft runtime files use Microsoft's distributable-code terms. All texts
   are in `paddleocr/licenses/`.
+- Kizuna's persistent PaddleOCR worker: GPL-3.0-or-later; the source is under
+  `paddleocr/worker/` and the license text is `mpv/LICENSE.GPLv3.txt`.
 
 See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and
 [CORRESPONDING_SOURCE.md](CORRESPONDING_SOURCE.md) before redistributing these

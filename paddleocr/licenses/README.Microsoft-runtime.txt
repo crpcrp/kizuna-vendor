@@ -6,11 +6,11 @@ so no upstream license text accompanies them in this mirror. They are copied
 from the Visual Studio 2022 Build Tools redistributable directory recorded in
 `scripts/build-paddleocr-win-x64.ps1`.
 
-  paddleocr/bin/msvcp140.dll        Visual C++ runtime, VC143 14.42.34433
-  paddleocr/bin/vcruntime140.dll    Visual C++ runtime, VC143 14.42.34433
-  paddleocr/bin/vcruntime140_1.dll  Visual C++ runtime, VC143 14.42.34433
-  paddleocr/bin/concrt140.dll       Visual C++ runtime, VC143 14.42.34433
-  paddleocr/bin/vcomp140.dll        Visual C++ OpenMP runtime, VC143 14.42.34433
+  paddleocr/bin/msvcp140.dll        Visual C++ runtime, VC143
+  paddleocr/bin/vcruntime140.dll    Visual C++ runtime, VC143
+  paddleocr/bin/vcruntime140_1.dll  Visual C++ runtime, VC143
+  paddleocr/bin/concrt140.dll       Visual C++ runtime, VC143
+  paddleocr/bin/vcomp140.dll        Visual C++ OpenMP runtime, VC143
 
 `opencv_world4100.dll` imports the first four; `mkldnn.dll` imports
 `vcomp140.dll`. Both also import the Universal CRT `api-ms-win-crt-*` API

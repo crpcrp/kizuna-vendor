@@ -16,7 +16,41 @@ recorded in [manifest.json](manifest.json).
 | `linux-x64/ffmpeg/` | Ubuntu FFmpeg 6.1.1-3ubuntu5 | Media probing and conversion |
 | `linux-x64/mecab/` | Ubuntu MeCab 0.996-14ubuntu4 | Tokenization with UTF-8 IPADIC |
 
-Large files use Git LFS. Install Git LFS before cloning:
+## How Kizuna gets these files
+
+Not by cloning this repository. Each release here carries one `.tar.gz` per
+platform, and Kizuna's `npm run resources` downloads the one it needs, pinned by
+tag, asset name, SHA-256, and byte length in its `resources.lock.json`.
+
+Cloning meant `git lfs pull`, which fetches every LFS object at the commit —
+both platforms, ~855 MB — on every build that missed its cache, against a
+metered monthly bandwidth quota. A release asset is not metered, carries one
+platform, and compresses to roughly a third of the size.
+
+After changing any payload, publish the archives for the new commit by running
+the **Publish payload archives** workflow (Actions > Run workflow). It packages
+with a `GITHUB_TOKEN` scoped to this repository, records which commit produced
+which asset hash, and puts the `source` block for Kizuna's
+`resources.lock.json` on the run summary.
+
+`scripts/publish-payloads.sh` is that same code path and stays runnable
+locally, mainly for a dry run:
+
+```bash
+./scripts/publish-payloads.sh --platform linux-x64 --dry-run
+```
+
+Either way it re-verifies every file against `SHA256SUMS.txt`, refuses to
+package an unresolved LFS pointer or an uncommitted tree, and builds
+reproducible archives — `tar` is invoked so the result is a pure function of
+the tree, which means republishing a commit yields the same SHA-256 and a
+deleted release can be restored without invalidating any lock that pinned it.
+
+An asset that already exists is never silently overwritten, because something
+may already have pinned its hash; replacing one takes `--replace`.
+
+Large files still use Git LFS *inside* this repository, which only affects
+people working on the payloads themselves:
 
 ```powershell
 git lfs install

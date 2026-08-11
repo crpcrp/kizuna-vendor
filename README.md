@@ -15,7 +15,32 @@ recorded in [manifest.json](manifest.json).
 | `linux-x64/ffmpeg/` | Ubuntu FFmpeg 6.1.1-3ubuntu5 | Media probing and conversion |
 | `linux-x64/mecab/` | Ubuntu MeCab 0.996-14ubuntu4 | Tokenization with UTF-8 IPADIC |
 
-Large files use Git LFS. Install Git LFS before cloning:
+## How Kizuna gets these files
+
+Not by cloning this repository. Each release here carries one `.tar.gz` per
+platform, and Kizuna's `npm run resources` downloads the one it needs, pinned by
+tag, asset name, SHA-256, and byte length in its `resources.lock.json`.
+
+Cloning meant `git lfs pull`, which fetches every LFS object at the commit —
+both platforms, ~855 MB — on every build that missed its cache, against a
+metered monthly bandwidth quota. A release asset is not metered, carries one
+platform, and compresses to roughly a third of the size.
+
+Publish the archives for the current commit after changing any payload:
+
+```bash
+./scripts/publish-payloads.sh                     # both platforms
+./scripts/publish-payloads.sh --platform linux-x64 --dry-run
+```
+
+The script re-verifies every file against `SHA256SUMS.txt`, refuses to package
+an unresolved LFS pointer or an uncommitted tree, builds reproducible archives,
+creates the release, and prints the `source` block to paste into Kizuna's
+`resources.lock.json`. It needs the payload present on disk, so run it from a
+full checkout on a machine that has pulled LFS at least once.
+
+Large files still use Git LFS *inside* this repository, which only affects
+people working on the payloads themselves:
 
 ```powershell
 git lfs install

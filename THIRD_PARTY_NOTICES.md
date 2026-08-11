@@ -86,7 +86,7 @@ They do not license Kizuna's own source code.
 
 ## PP-OCRv5 models
 
-- Detection `PP-OCRv5_mobile_det` and recognition `PP-OCRv5_mobile_rec`,
+- Detection `PP-OCRv5_server_det` and recognition `PP-OCRv5_server_rec`,
   redistributed unmodified from PaddlePaddle's official inference archives.
 - Copyright © PaddlePaddle Authors; released with PaddleOCR under Apache-2.0
   (`paddleocr/licenses/LICENSE.PaddleOCR.txt`).

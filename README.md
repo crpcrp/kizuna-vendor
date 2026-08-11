@@ -44,10 +44,11 @@ its location is free as long as both directories survive together.
 PP-OCRv5 recognition covers Simplified Chinese, Traditional Chinese, English,
 Japanese, and Pinyin in a single model; there is no Japanese-specific weight
 file for this generation and no separate character dictionary, because the
-PIR-format models embed it. Only the `mobile` pair is mirrored. The heavier
-`server` pair, which `deploy/cpp_infer` picks by default for `lang=japan`,
-scores about the same on game-style Japanese text while being eight times
-larger, so `manifest.json` records its hashes without mirroring it.
+PIR-format models embed it. The mirrored `server` pair is what
+`deploy/cpp_infer` selects by default for `lang=japan`. The lighter `mobile`
+pair is 21 MB against the server pair's 166 MB and roughly three times faster,
+but reads some kanji as their katakana homoglyphs, so `manifest.json` records
+its hashes without mirroring it.
 
 Unlike the other Windows components, this payload is built from source rather
 than extracted from an upstream release. Rebuild it on a Windows x64 host with
@@ -68,9 +69,10 @@ header-only MIT shim on the include path and edits no PaddleOCR source.
 Two runtime notes worth carrying into packaging:
 
 - `ppocr.exe` is a one-shot CLI. It loads both models, recognizes one image,
-  prints JSON, and exits, costing roughly 1.5 s per run on an 8-core desktop.
-  Anything wanting warm-process latency must link `deploy/cpp_infer`'s API
-  instead of spawning this executable per capture.
+  prints JSON, and exits, costing roughly 5 s per run on an 8-core desktop
+  with the server models. Nearly all of that is model load, so anything
+  wanting workable latency must link `deploy/cpp_infer`'s API and keep the
+  models resident instead of spawning this executable per capture.
 - PaddleOCR gates oneDNN acceleration on an Intel CPU brand string
   (`Utility::IsMkldnnAvailable`), so AMD hosts silently fall back to the plain
   CPU backend. `mkldnn.dll` still ships because Intel hosts do use it.

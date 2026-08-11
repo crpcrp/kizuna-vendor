@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Verifies the Windows x64 PaddleOCR payload under paddleocr/.
 
@@ -56,18 +56,22 @@ $bmp.Save($fixture, [System.Drawing.Imaging.ImageFormat]::Png)
 $bmp.Dispose()
 
 $env:GLOG_minloglevel = '3'
+# ppocr writes result files next to its working directory unless told
+# otherwise; keep them out of the payload.
+$savePath = Join-Path ([System.IO.Path]::GetTempPath()) 'kizuna-paddleocr-verify'
 Push-Location (Join-Path $Payload 'bin')
 try {
     $output = & .\ppocr.exe ocr --input $fixture --lang japan --ocr_version PP-OCRv5 `
-        --text_detection_model_dir ..\models\PP-OCRv5_mobile_det_infer `
-        --text_detection_model_name PP-OCRv5_mobile_det `
-        --text_recognition_model_dir ..\models\PP-OCRv5_mobile_rec_infer `
-        --text_recognition_model_name PP-OCRv5_mobile_rec `
+        --text_detection_model_dir ..\models\PP-OCRv5_server_det_infer `
+        --text_detection_model_name PP-OCRv5_server_det `
+        --text_recognition_model_dir ..\models\PP-OCRv5_server_rec_infer `
+        --text_recognition_model_name PP-OCRv5_server_rec `
         --use_doc_orientation_classify false --use_doc_unwarping false `
-        --use_textline_orientation false 2>&1 | Out-String
+        --use_textline_orientation false --save_path $savePath 2>&1 | Out-String
 } finally {
     Pop-Location
     Remove-Item -LiteralPath $fixture -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $savePath -Recurse -Force -ErrorAction SilentlyContinue
 }
 
 if ($output -match '今日はいい天気ですね') {

@@ -69,14 +69,14 @@ the payload changes.
 
 ## PP-OCRv5 models
 
-- [Detection `PP-OCRv5_mobile_det`](https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/PP-OCRv5_mobile_det_infer.tar)
-  (`SHA-256 50446e5d01ac2a73d5319c89513281f6578414c888c602f9af13f93feefffc58`)
-- [Recognition `PP-OCRv5_mobile_rec`](https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/PP-OCRv5_mobile_rec_infer.tar)
-  (`SHA-256 566b9512b34e34a9f0db54d87b51fa5a0b9ed2cf1ab7e49728cc0b8b5a64f414`)
+- [Detection `PP-OCRv5_server_det`](https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/PP-OCRv5_server_det_infer.tar)
+  (`SHA-256 22a33e0ba6a21425ea4192da03bf4395c9a0c67902bd924b7328fc859073045d`)
+- [Recognition `PP-OCRv5_server_rec`](https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/PP-OCRv5_server_rec_infer.tar)
+  (`SHA-256 d99be2ffd348943ab52876179168be4fb5b14f5f0812f2ae4c76d89ec2ea750a`)
 - Both are extracted unmodified; the mirrored `inference.json`,
   `inference.pdiparams`, and `inference.yml` files match the archives.
-- The unmirrored `server` pair is pinned in `manifest.json` should a future
-  change prefer accuracy over size.
+- The unmirrored `mobile` pair is pinned in `manifest.json` should a future
+  change prefer size and speed over accuracy.
 - Model training recipes and configuration live with
   [PaddleOCR 3.7.0](https://github.com/PaddlePaddle/PaddleOCR/tree/v3.7.0).
 

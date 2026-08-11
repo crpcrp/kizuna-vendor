@@ -52,14 +52,14 @@ $Archives = @(
         Sha256 = 'bff38466091c313dac21a0b73eea8278316a89c1d434c6f0b10697e087670168'
     },
     @{
-        Name   = 'PP-OCRv5_mobile_det_infer.tar'
-        Url    = 'https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/PP-OCRv5_mobile_det_infer.tar'
-        Sha256 = '50446e5d01ac2a73d5319c89513281f6578414c888c602f9af13f93feefffc58'
+        Name   = 'PP-OCRv5_server_det_infer.tar'
+        Url    = 'https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/PP-OCRv5_server_det_infer.tar'
+        Sha256 = '22a33e0ba6a21425ea4192da03bf4395c9a0c67902bd924b7328fc859073045d'
     },
     @{
-        Name   = 'PP-OCRv5_mobile_rec_infer.tar'
-        Url    = 'https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/PP-OCRv5_mobile_rec_infer.tar'
-        Sha256 = '566b9512b34e34a9f0db54d87b51fa5a0b9ed2cf1ab7e49728cc0b8b5a64f414'
+        Name   = 'PP-OCRv5_server_rec_infer.tar'
+        Url    = 'https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/PP-OCRv5_server_rec_infer.tar'
+        Sha256 = 'd99be2ffd348943ab52876179168be4fb5b14f5f0812f2ae4c76d89ec2ea750a'
     },
     @{
         # PaddleOCR 3.7.0's utility.cc includes <dirent.h>, which MSVC does not
@@ -188,7 +188,7 @@ foreach ($file in $runtimeFiles) {
     Copy-Item -LiteralPath $file -Destination $binOut -Force
 }
 
-foreach ($model in @('PP-OCRv5_mobile_det_infer', 'PP-OCRv5_mobile_rec_infer')) {
+foreach ($model in @('PP-OCRv5_server_det_infer', 'PP-OCRv5_server_rec_infer')) {
     & tar -xf $paths["$model.tar"] -C $modelsOut
 }
 

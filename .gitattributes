@@ -14,6 +14,10 @@ linux-x64/ffmpeg/bin/ffprobe filter=lfs diff=lfs merge=lfs -text
 linux-x64/mecab/lib/*.so* filter=lfs diff=lfs merge=lfs -text
 
 scripts/*.sh text eol=lf
+# verify-paddleocr-win-x64.ps1 carries Japanese fixture text, so it needs its
+# UTF-8 BOM and CRLF endings intact: Windows PowerShell 5.1 reads a BOM-less
+# file as ANSI and fails to parse it. Store both scripts byte for byte.
+scripts/*.ps1 -text
 linux-x64/mecab/bin/mecab text eol=lf
 linux-x64/mecab/etc/mecabrc text eol=lf
 

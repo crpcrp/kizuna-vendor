@@ -56,9 +56,10 @@ recognition costs roughly 0.2 s per detected line, so latency tracks how much
 text is on screen rather than the screen's resolution.
 
 Unlike the other Windows components, this payload is built from source rather
-than extracted from an upstream release. It is built on a developer machine and
-committed through Git LFS; CI verifies the committed binary but never builds it.
-Rebuild it on a Windows x64 host with Visual Studio 2022 Build Tools and 7-Zip:
+than extracted from an upstream release. It is built and verified on a developer
+machine and committed through Git LFS; no CI job builds or checks it, because
+both need a Windows host that has already pulled the whole payload. Rebuild it
+on a Windows x64 host with Visual Studio 2022 Build Tools and 7-Zip:
 
 ```powershell
 ./scripts/build-paddleocr-win-x64.ps1
@@ -81,9 +82,9 @@ Two runtime notes worth carrying into packaging:
 
 - `paddleocr.exe` loads and warms both models before its `ready` handshake,
   then stays alive across captures. Model startup therefore happens while
-  Game OCR is armed, not after the capture shortcut. The verifier sends two
-  requests through the real protocol and requires the second to finish within
-  two seconds.
+  Game OCR is armed, not after the capture shortcut. The verifier sends four
+  requests through the real protocol and requires the median of the last three
+  to finish within 2.5 s.
 - PaddleOCR gates oneDNN acceleration on an Intel CPU brand string
   (`Utility::IsMkldnnAvailable`), so AMD hosts silently fall back to the plain
   CPU backend. `mkldnn.dll` still ships because Intel hosts do use it.

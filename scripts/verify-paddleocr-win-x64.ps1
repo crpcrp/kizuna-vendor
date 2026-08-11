@@ -5,18 +5,18 @@
 .DESCRIPTION
     Checks every payload file against SHA256SUMS.txt, starts the persistent
     worker, and drives it through the Kizuna JSONL protocol with a committed
-    1920x1080 capture that stands in for a game screen. Reports the cold start
-    and the warm per-request latency, and fails if recognition is wrong or the
-    warm path exceeds -MaxWarmRecognitionMs.
+    1920x1080 capture that stands in for a game screen. Reports the startup
+    time and the warm per-request latency, and fails if recognition is wrong or
+    the warm path exceeds -MaxWarmRecognitionMs.
 
     The fixture is a committed PNG rather than text drawn at run time: rendering
     it locally would make the result depend on which Japanese fonts happen to be
-    installed, and a hosted runner has none of them.
+    installed.
 
 .PARAMETER MaxWarmRecognitionMs
-    Warm-path budget. The default reflects a developer desktop. Hosted runners
-    have a quarter of the cores and are several times slower, so CI should pass
-    a looser ceiling; the measured numbers are always printed either way.
+    Warm-path budget. The default reflects a sixteen-core developer desktop;
+    pass a looser ceiling on a slower machine. The measured numbers are always
+    printed either way.
 #>
 [CmdletBinding()]
 param(
@@ -126,7 +126,10 @@ try {
     if ($ready.version -ne 1 -or $ready.type -ne 'ready') {
         throw 'Worker returned an invalid ready handshake'
     }
-    Write-Host "Cold start (launch to ready, models loaded and warmed): $($coldTimer.ElapsedMilliseconds) ms"
+    # Not comparable to a recognition time: the warm-up frame is a 384x96 strip
+    # with one ASCII word, so this is model load plus a near-empty inference,
+    # not the cost of a real capture.
+    Write-Host "Startup (launch to ready, models loaded and warmed): $($coldTimer.ElapsedMilliseconds) ms"
 
     $imageBase64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($fixture))
     $times = @()

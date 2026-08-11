@@ -1,6 +1,7 @@
 // Copyright (C) 2026 Kizuna contributors
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#define NOMINMAX
 #include <Windows.h>
 
 #include <algorithm>

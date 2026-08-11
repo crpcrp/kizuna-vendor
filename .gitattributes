@@ -3,12 +3,23 @@
 *.bin filter=lfs diff=lfs merge=lfs -text
 *.dic filter=lfs diff=lfs merge=lfs -text
 
+paddleocr/models/**/inference.pdiparams filter=lfs diff=lfs merge=lfs -text
+# Small enough for a plain blob, but it must survive byte for byte: the warm
+# latency and the recognized text are both measured against these exact pixels.
+scripts/testdata/*.png binary
+paddleocr/models/**/inference.json -text
+paddleocr/models/**/inference.yml -text
+paddleocr/licenses/* -text
+paddleocr/worker/*.cc text eol=lf
+paddleocr/worker/*.patch text eol=lf
+
 linux-x64/mpv/bin/mpv filter=lfs diff=lfs merge=lfs -text
 linux-x64/ffmpeg/bin/ffmpeg filter=lfs diff=lfs merge=lfs -text
 linux-x64/ffmpeg/bin/ffprobe filter=lfs diff=lfs merge=lfs -text
 linux-x64/mecab/lib/*.so* filter=lfs diff=lfs merge=lfs -text
 
 scripts/*.sh text eol=lf
+scripts/*.ps1 text eol=crlf
 linux-x64/mecab/bin/mecab text eol=lf
 linux-x64/mecab/etc/mecabrc text eol=lf
 

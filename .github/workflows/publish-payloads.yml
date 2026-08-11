@@ -46,22 +46,26 @@ jobs:
     steps:
       # Pointers only: the pull below is filtered, and checking out with LFS
       # enabled would fetch both platforms regardless of the chosen input.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           lfs: false
 
+      # Asked of the script rather than restated here. A list that drifted from
+      # the one the script packages would pull the wrong trees, and every byte
+      # pulled is charged against a metered LFS bandwidth quota.
       - name: Select the trees to materialise
         id: trees
+        env:
+          PLATFORM: ${{ inputs.platform }}
         run: |
-          case "${{ inputs.platform }}" in
-            win32-x64) include='ffmpeg/**,mecab/**,mpv/**,paddleocr/**' ;;
-            linux-x64) include='linux-x64/**' ;;
-            *)         include='ffmpeg/**,mecab/**,mpv/**,paddleocr/**,linux-x64/**' ;;
-          esac
+          include="$(./scripts/publish-payloads.sh --platform "$PLATFORM" --print-lfs-include)"
+          echo "Materialising $include"
           echo "include=$include" >>"$GITHUB_OUTPUT"
 
       - name: Fetch the payload from Git LFS
-        run: git lfs pull --include="${{ steps.trees.outputs.include }}"
+        env:
+          INCLUDE: ${{ steps.trees.outputs.include }}
+        run: git lfs pull --include="$INCLUDE"
 
       # The script re-verifies every file against SHA256SUMS.txt and refuses to
       # package an unresolved pointer, so a partial pull fails here rather than
@@ -71,16 +75,20 @@ jobs:
       # needs, archive hashes included. That belongs on the run summary rather
       # than buried in the log, because it is the one output a human has to
       # copy. The archives themselves are not kept as artifacts: they are
-      # already release assets, and a second 146 MB copy buys nothing.
+      # already release assets, and a second quarter-gigabyte copy buys nothing.
       - name: Package and publish
         env:
           GH_TOKEN: ${{ github.token }}
+          PLATFORM: ${{ inputs.platform }}
+          REPLACE: ${{ inputs.replace }}
         run: |
           # Without this, tee's exit status hides a failed publish.
           set -o pipefail
-          ./scripts/publish-payloads.sh \
-            --platform "${{ inputs.platform }}" \
-            ${{ inputs.replace && '--replace' || '' }} | tee publish.log
+          arguments=(--platform "$PLATFORM")
+          # Not `[ … ] && arguments+=(…)`: the step runs under `bash -e`, where a
+          # false test as a whole statement ends the job.
+          if [ "$REPLACE" = true ]; then arguments+=(--replace); fi
+          ./scripts/publish-payloads.sh "${arguments[@]}" | tee publish.log
           {
             echo '### resources.lock.json'
             echo '```json'

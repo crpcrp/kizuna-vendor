@@ -17,6 +17,12 @@
 # Usage:
 #   scripts/publish-payloads.sh [--platform win32-x64|linux-x64|all]
 #                               [--tag <tag>] [--out <dir>] [--dry-run] [--replace]
+#   scripts/publish-payloads.sh --platform <p> --print-lfs-include
+#
+# --print-lfs-include writes the `git lfs pull --include` pattern for the
+# selected platform and exits. The workflow asks for it rather than keeping its
+# own copy of the list, so the trees that get materialised are always the trees
+# that get packaged.
 #
 # Normally run through .github/workflows/publish-payloads.yml, which gets a
 # scoped GITHUB_TOKEN and leaves an audit trail. Running it locally needs a
@@ -36,6 +42,7 @@ tag=""
 out_dir="dist"
 dry_run=0
 replace=0
+print_include=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -44,7 +51,8 @@ while [ $# -gt 0 ]; do
     --out) out_dir="${2:?--out needs a value}"; shift 2 ;;
     --dry-run) dry_run=1; shift ;;
     --replace) replace=1; shift ;;
-    -h|--help) sed -n '2,28p' "${BASH_SOURCE[0]}" | cut -c3-; exit 0 ;;
+    --print-lfs-include) print_include=1; shift ;;
+    -h|--help) sed -n '2,34p' "${BASH_SOURCE[0]}" | cut -c3-; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
@@ -127,19 +135,27 @@ pack() {
 
 trees_for() {
   case "$1" in
-    win32-x64)
-      # paddleocr is only present once its payload has landed.
-      local dirs=(ffmpeg mecab mpv)
-      [ -d paddleocr ] && dirs+=(paddleocr)
-      printf '%s\n' "${dirs[@]}"
-      ;;
+    # Every tree is mandatory. A Windows archive missing paddleocr/ would
+    # extract cleanly and only fail later, in a Kizuna build, as a pile of
+    # missing files; tar reports it here instead.
+    win32-x64) printf '%s\n' ffmpeg mecab mpv paddleocr ;;
     linux-x64) printf '%s\n' linux-x64 ;;
   esac
 }
 
-mkdir -p "$out_dir"
 targets=()
 [ "$platform" = all ] && targets=(win32-x64 linux-x64) || targets=("$platform")
+
+if [ "$print_include" -eq 1 ]; then
+  include=""
+  for target in "${targets[@]}"; do
+    while IFS= read -r tree; do include="${include:+$include,}$tree/**"; done < <(trees_for "$target")
+  done
+  echo "$include"
+  exit 0
+fi
+
+mkdir -p "$out_dir"
 
 declare -a summary=()
 for target in "${targets[@]}"; do

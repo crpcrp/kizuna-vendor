@@ -1,0 +1,176 @@
+From 8bf5380b123aa952e019ad859707581033830274 Mon Sep 17 00:00:00 2001
+From: Adam Kocsis <kocsisadam1991@gmail.com>
+Date: Wed, 12 Aug 2026 09:23:04 +0200
+Subject: [PATCH 2/3] Add batched fixed-width recognition and session profiling
+ hooks
+
+Upstream calls Session::Run once per detected region at a width that changes
+with every crop. getTextLinesBatched packs regions into one [N,3,48,W] run and
+pads with post-normalisation zero, which is what PaddleOCR does at imgW=320.
+
+Measured on the game-capture-1080p fixture, 30 warm runs: CPU 89.6 -> 83.2 ms
+p50. The same patch is what makes DirectML viable at all (164 -> 38 ms), which
+matters if the GPU provider is revived.
+
+Known limit, same as PaddleOCR's: a region wider than the target aspect ratio
+is squashed rather than bucketed. Fine for dialogue crops, worth revisiting for
+full-width subtitles.
+
+enableProfiling/endProfiling expose ONNX Runtime's profile JSON so provider
+placement can be verified instead of assumed.
+---
+ include/CrnnNet.h | 11 ++++++++
+ include/DbNet.h   |  4 +++
+ src/CrnnNet.cpp   | 67 +++++++++++++++++++++++++++++++++++++++++++++++
+ src/DbNet.cpp     |  9 +++++++
+ 4 files changed, 91 insertions(+)
+
+diff --git a/include/CrnnNet.h b/include/CrnnNet.h
+index 24d00dd..1756b7b 100644
+--- a/include/CrnnNet.h
++++ b/include/CrnnNet.h
+@@ -14,10 +14,21 @@ public:
+ 
+     void setGpuIndex(int gpuIndex);
+ 
++    // Node-to-provider assignment becomes evidence rather than assumption.
++    void enableProfiling(const std::string &prefix);
++
++    std::string endProfiling();
++
+     void initModel(const std::string &pathStr, const std::string &keysPath);
+ 
+     std::vector<TextLine> getTextLines(std::vector<cv::Mat> &partImg, const char *path, const char *imgName);
+ 
++    // Batched recognition at a fixed input width, the way PaddleOCR itself
++    // runs the recognizer. Upstream runs one region per Session::Run at a
++    // width that changes with every crop, which costs throughput on CPU and
++    // is the worst case for any provider that caches kernels per shape.
++    std::vector<TextLine> getTextLinesBatched(std::vector<cv::Mat> &partImg, int batchSize, int fixedWidth);
++
+ private:
+     bool isOutputDebugImg = false;
+     Ort::Session *session = nullptr;
+diff --git a/include/DbNet.h b/include/DbNet.h
+index ccbe286..05fcb3e 100644
+--- a/include/DbNet.h
++++ b/include/DbNet.h
+@@ -13,6 +13,10 @@ public:
+ 
+     void setGpuIndex(int gpuIndex);
+ 
++    void enableProfiling(const std::string &prefix);
++
++    std::string endProfiling();
++
+     void initModel(const std::string &pathStr);
+ 
+     std::vector<TextBox> getTextBoxes(cv::Mat &src, ScaleParam &s, float boxScoreThresh,
+diff --git a/src/CrnnNet.cpp b/src/CrnnNet.cpp
+index 330b9c8..2e2a50f 100644
+--- a/src/CrnnNet.cpp
++++ b/src/CrnnNet.cpp
+@@ -64,6 +64,15 @@ void CrnnNet::setNumThread(int numOfThread) {
+     sessionOptions.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
+ }
+ 
++void CrnnNet::enableProfiling(const std::string &prefix) {
++    sessionOptions.EnableProfiling(strToWstr(prefix).c_str());
++}
++
++std::string CrnnNet::endProfiling() {
++    Ort::AllocatorWithDefaultOptions allocator;
++    return std::string(session->EndProfilingAllocated(allocator).get());
++}
++
+ void CrnnNet::initModel(const std::string &pathStr, const std::string &keysPath) {
+ #ifdef _WIN32
+     std::wstring crnnPath = strToWstr(pathStr);
+@@ -150,6 +159,64 @@ TextLine CrnnNet::getTextLine(const cv::Mat &src) {
+     return scoreToTextLine(outputData, outputShape[1], outputShape[2]);
+ }
+ 
++std::vector<TextLine> CrnnNet::getTextLinesBatched(std::vector<cv::Mat> &partImg, int batchSize, int fixedWidth) {
++    const size_t count = partImg.size();
++    std::vector<TextLine> textLines(count);
++    if (count == 0) return textLines;
++    if (batchSize < 1) batchSize = 1;
++
++    const size_t planeSize = (size_t) dstHeight * (size_t) fixedWidth;
++    auto memoryInfo = Ort::MemoryInfo::CreateCpu(OrtDeviceAllocator, OrtMemTypeCPU);
++    std::vector<const char *> inputNames = {inputNamesPtr.data()->get()};
++    std::vector<const char *> outputNames = {outputNamesPtr.data()->get()};
++
++    for (size_t begin = 0; begin < count; begin += (size_t) batchSize) {
++        const size_t end = (std::min)(begin + (size_t) batchSize, count);
++        const size_t n = end - begin;
++
++        // Zero after normalization is mid-grey, which is what PaddleOCR pads
++        // the recognizer input with.
++        std::vector<float> input(n * 3 * planeSize, 0.0f);
++
++        for (size_t b = 0; b < n; ++b) {
++            cv::Mat &src = partImg[begin + b];
++            float scale = (float) dstHeight / (float) src.rows;
++            int w = (std::max)(1, (std::min)(fixedWidth, (int) ((float) src.cols * scale)));
++            cv::Mat resized;
++            cv::resize(src, resized, cv::Size(w, dstHeight));
++            const size_t channels = resized.channels();
++            float *dst = input.data() + b * 3 * planeSize;
++            for (int y = 0; y < dstHeight; ++y) {
++                const unsigned char *row = resized.ptr<unsigned char>(y);
++                for (int x = 0; x < w; ++x) {
++                    for (size_t ch = 0; ch < channels; ++ch) {
++                        dst[ch * planeSize + (size_t) y * fixedWidth + x] =
++                                (float) row[x * channels + ch] * normValues[ch] -
++                                meanValues[ch] * normValues[ch];
++                    }
++                }
++            }
++        }
++
++        std::array<int64_t, 4> inputShape{(int64_t) n, 3, dstHeight, fixedWidth};
++        Ort::Value inputTensor = Ort::Value::CreateTensor<float>(memoryInfo, input.data(), input.size(),
++                                                                inputShape.data(), inputShape.size());
++        auto outputTensor = session->Run(Ort::RunOptions{nullptr}, inputNames.data(), &inputTensor,
++                                         inputNames.size(), outputNames.data(), outputNames.size());
++        std::vector<int64_t> outputShape = outputTensor[0].GetTensorTypeAndShapeInfo().GetShape();
++        const size_t steps = (size_t) outputShape[1];
++        const size_t classes = (size_t) outputShape[2];
++        float *floatArray = outputTensor.front().GetTensorMutableData<float>();
++
++        for (size_t b = 0; b < n; ++b) {
++            std::vector<float> one(floatArray + b * steps * classes,
++                                  floatArray + (b + 1) * steps * classes);
++            textLines[begin + b] = scoreToTextLine(one, steps, classes);
++        }
++    }
++    return textLines;
++}
++
+ std::vector<TextLine> CrnnNet::getTextLines(std::vector<cv::Mat> &partImg, const char *path, const char *imgName) {
+     int size = partImg.size();
+     std::vector<TextLine> textLines(size);
+diff --git a/src/DbNet.cpp b/src/DbNet.cpp
+index 8c44ab5..0402b3f 100644
+--- a/src/DbNet.cpp
++++ b/src/DbNet.cpp
+@@ -48,6 +48,15 @@ void DbNet::setNumThread(int numOfThread) {
+     sessionOptions.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
+ }
+ 
++void DbNet::enableProfiling(const std::string &prefix) {
++    sessionOptions.EnableProfiling(strToWstr(prefix).c_str());
++}
++
++std::string DbNet::endProfiling() {
++    Ort::AllocatorWithDefaultOptions allocator;
++    return std::string(session->EndProfilingAllocated(allocator).get());
++}
++
+ void DbNet::initModel(const std::string &pathStr) {
+ #ifdef _WIN32
+     std::wstring detPath = strToWstr(pathStr);
+-- 
+2.37.3.windows.1
+

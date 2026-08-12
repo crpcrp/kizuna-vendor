@@ -1,0 +1,5 @@
+﻿build: DirectML-enabled onnxruntime
+provider request: DML
+STAGE_FAILURE append_provider: E:\_work\1\s\onnxruntime\core\providers\dml\dml_provider_factory.cc(520)\onnxruntime.dll!00007FFBBC95B160: (caller: 00007FFBBC95B46A) Exception(1) tid(154c) C0262002 Specified display adapter handle is invalid.
+
+

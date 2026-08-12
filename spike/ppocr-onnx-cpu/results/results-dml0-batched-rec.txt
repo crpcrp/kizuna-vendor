@@ -1,0 +1,33 @@
+﻿build: DirectML-enabled onnxruntime
+provider request: DML
+det try to use DML adapter 0
+rec try to use DML adapter 0
+append provider: 253.5 ms
+total keys size(18385)
+create det session: 100.7 ms
+create rec session: 166.1 ms
+image: 1920x1080
+det input: 960x512 (max-side 960)
+rec mode: batched 8 x 3x48x320
+time to ready (construct + sessions + first inference): 961.3 ms
+first inference: 327.2 ms (det 219.7 ms, rec 107.5 ms over 5 regions)
+--- recognized (first run) ---
+[0] 今日はいい天気ですね。
+[1] 攻撃力が上がった！
+[2] レベルアップしました。
+[3] 次の町へ向かいましょう。
+[4] 付近の宝箱を開ける。
+--- end recognized ---
+warm runs: 30
+warm total  mean 38.2  p50 38.0  p95 40.2  min 36.0  max 40.5 ms
+warm det    p50 11.9  p95 12.6 ms
+warm rec    p50 26.1  p95 27.3 ms
+--- recognized (last warm run) ---
+[0] 今日はいい天気ですね。
+[1] 攻撃力が上がった！
+[2] レベルアップしました。
+[3] 次の町へ向かいましょう。
+[4] 付近の宝箱を開ける。
+--- end recognized ---
+peak working set: 343.5 MB
+gpu local memory: before 0.0 MB, after 311.8 MB, delta 311.8 MB

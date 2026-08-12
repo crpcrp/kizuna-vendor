@@ -1,0 +1,30 @@
+﻿build: CPU-only onnxruntime
+provider request: CPU
+append provider: 0.0 ms
+total keys size(18385)
+create det session: 56.8 ms
+create rec session: 98.3 ms
+image: 1920x1080
+det input: 960x512 (max-side 960)
+rec mode: upstream, one region per Run, variable width
+time to ready (construct + sessions + first inference): 379.3 ms
+first inference: 98.5 ms (det 47.3 ms, rec 51.1 ms over 5 regions)
+--- recognized (first run) ---
+[0] 今日はいい天気ですね。
+[1] 攻撃力が上がった！
+[2] レベルアップしました。
+[3] 次の町へ向かいましょう。
+[4] 付近の宝箱を開ける。
+--- end recognized ---
+warm runs: 30
+warm total  mean 89.6  p50 89.6  p95 96.0  min 81.4  max 96.7 ms
+warm det    p50 39.0  p95 40.9 ms
+warm rec    p50 51.0  p95 55.1 ms
+--- recognized (last warm run) ---
+[0] 今日はいい天気ですね。
+[1] 攻撃力が上がった！
+[2] レベルアップしました。
+[3] 次の町へ向かいましょう。
+[4] 付近の宝箱を開ける。
+--- end recognized ---
+peak working set: 224.2 MB

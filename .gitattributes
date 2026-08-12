@@ -13,6 +13,14 @@ paddleocr/licenses/* -text
 paddleocr/worker/*.cc text eol=lf
 paddleocr/worker/*.patch text eol=lf
 
+# Spike artifacts (#11). keys.txt must stay LF: RapidOcrOnnx reads it with
+# getline and would keep a CR on every entry.
+spike/**/*.patch text eol=lf
+spike/**/keys.txt text eol=lf
+spike/**/*.py text eol=lf
+spike/**/*.cpp text eol=lf
+spike/**/*.txt text eol=lf
+
 linux-x64/mpv/bin/mpv filter=lfs diff=lfs merge=lfs -text
 linux-x64/ffmpeg/bin/ffmpeg filter=lfs diff=lfs merge=lfs -text
 linux-x64/ffmpeg/bin/ffprobe filter=lfs diff=lfs merge=lfs -text

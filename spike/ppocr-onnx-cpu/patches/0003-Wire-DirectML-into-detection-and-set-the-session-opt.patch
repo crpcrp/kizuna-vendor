@@ -1,0 +1,76 @@
+From 00c1ae23329cfe92e51bd5e06eb82e95a650e955 Mon Sep 17 00:00:00 2001
+From: Adam Kocsis <kocsisadam1991@gmail.com>
+Date: Wed, 12 Aug 2026 09:23:25 +0200
+Subject: [PATCH 3/3] Wire DirectML into detection and set the session options
+ ORT requires
+
+PARKED: not needed for the CPU-only route. Kept so the GPU option can be
+revived without re-deriving it.
+
+Upstream wires DirectML into recognition and angle classification only, so
+detection silently stayed on CPU. It also set neither DisableMemPattern() nor
+ORT_SEQUENTIAL, both of which ONNX Runtime requires for the DirectML EP, and
+ignored the return of AppendExecutionProvider_DML so an unusable adapter could
+not be reported.
+
+All of this compiles out entirely unless -D__DIRECTML__ is defined.
+---
+ src/CrnnNet.cpp |  6 ++++--
+ src/DbNet.cpp   | 17 +++++++++++++++++
+ 2 files changed, 21 insertions(+), 2 deletions(-)
+
+diff --git a/src/CrnnNet.cpp b/src/CrnnNet.cpp
+index 2e2a50f..f80b52b 100644
+--- a/src/CrnnNet.cpp
++++ b/src/CrnnNet.cpp
+@@ -27,8 +27,10 @@ void CrnnNet::setGpuIndex(int gpuIndex) {
+ 
+ #ifdef __DIRECTML__
+     if (gpuIndex >= 0) {
+-        OrtSessionOptionsAppendExecutionProvider_DML(sessionOptions, gpuIndex);
+-        printf("rec try to use GPU%d\n", gpuIndex);
++        sessionOptions.DisableMemPattern();
++        sessionOptions.SetExecutionMode(ExecutionMode::ORT_SEQUENTIAL);
++        Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_DML(sessionOptions, gpuIndex));
++        printf("rec try to use DML adapter %d\n", gpuIndex);
+     }
+     else {
+         printf("rec use CPU\n");
+diff --git a/src/DbNet.cpp b/src/DbNet.cpp
+index 0402b3f..6ccdef0 100644
+--- a/src/DbNet.cpp
++++ b/src/DbNet.cpp
+@@ -1,6 +1,10 @@
+ #include "DbNet.h"
+ #include "OcrUtils.h"
+ 
++#ifdef __DIRECTML__
++#include <dml_provider_factory.h>
++#endif
++
+ void DbNet::setGpuIndex(int gpuIndex) {
+ #ifdef __CUDA__
+     if (gpuIndex >= 0) {
+@@ -18,6 +22,19 @@ void DbNet::setGpuIndex(int gpuIndex) {
+         printf("det use CPU\n");
+     }
+ #endif
++
++#ifdef __DIRECTML__
++    if (gpuIndex >= 0) {
++        // ONNX Runtime requires both of these for the DirectML EP.
++        sessionOptions.DisableMemPattern();
++        sessionOptions.SetExecutionMode(ExecutionMode::ORT_SEQUENTIAL);
++        Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_DML(sessionOptions, gpuIndex));
++        printf("det try to use DML adapter %d\n", gpuIndex);
++    }
++    else {
++        printf("det use CPU\n");
++    }
++#endif
+ }
+ 
+ DbNet::~DbNet() {
+-- 
+2.37.3.windows.1
+

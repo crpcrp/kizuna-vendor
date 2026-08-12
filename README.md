@@ -138,11 +138,18 @@ is ever produced by GitHub. Rebuild it on a Windows x64 host with Visual Studio
 ./scripts/verify-paddleocr-win-x64.ps1
 ```
 
-The build script caches its ~1.4 GB of dependencies under `C:\kzb`, so the
-first run takes roughly ten minutes and later runs that only change
-`paddleocr/worker/paddleocr_worker.cc` finish in well under a minute. It
-refreshes `SHA256SUMS.txt` and `manifest.json` itself. Pass `-Clean` to rebuild
-from scratch after changing a pinned version.
+The build script caches its ~1.4 GB of dependencies under
+`C:\kizuna\build-tools\paddleocr`, so the first run takes roughly ten minutes
+and later runs that only change `paddleocr/worker/paddleocr_worker.cc` finish
+in well under a minute. It refreshes `SHA256SUMS.txt` and `manifest.json`
+itself. Pass `-Clean` to rebuild from scratch after changing a pinned version.
+
+Every payload that is built rather than mirrored keeps its build tree in its
+own directory under `C:\kizuna\build-tools`, never in-tree and never scattered
+across the drive. Nothing in there is committed: the repository holds the
+finished payload plus the inputs a build cannot rederive, and the pinned URLs
+and SHA-256 hashes inside each build script are what makes the tree
+reproducible without it.
 
 The build script verifies every downloaded archive before use, including the
 three archives PaddleOCR's CMake normally fetches at configure time. It builds

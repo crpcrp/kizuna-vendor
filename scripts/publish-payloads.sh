@@ -138,7 +138,7 @@ trees_for() {
     # Every tree is mandatory. A Windows archive missing an OCR payload would
     # extract cleanly and only fail later, in a Kizuna build, as a pile of
     # missing files; tar reports it here instead.
-    win32-x64) printf '%s\n' ffmpeg mecab mpv paddleocr ppocr ;;
+    win32-x64) printf '%s\n' ffmpeg mecab mpv ppocr ;;
     linux-x64) printf '%s\n' linux-x64 ;;
   esac
 }

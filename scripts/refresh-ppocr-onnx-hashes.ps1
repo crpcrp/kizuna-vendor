@@ -32,9 +32,12 @@ $existing = @(Get-Content -LiteralPath $sumsPath | Where-Object { $_ -ne '' -and
 $paths = [string[]]@($staged.Keys)
 [array]::Sort($paths, [StringComparer]::Ordinal)
 $lines = @($paths | ForEach-Object { "$($staged[$_])  $_" })
+# The block keeps its place between the Windows payloads and the Linux tree.
+# Anchored on the first linux-x64 line: the retired paddleocr block this used to
+# insert before no longer exists, and an absent anchor would append instead.
 $insertAt = 0
 while ($insertAt -lt $existing.Count -and
-        $existing[$insertAt] -notmatch '^[0-9a-f]{64}\s+paddleocr/') {
+        $existing[$insertAt] -notmatch '^[0-9a-f]{64}\s+linux-x64/') {
     $insertAt++
 }
 $before = @($existing | Select-Object -First $insertAt)

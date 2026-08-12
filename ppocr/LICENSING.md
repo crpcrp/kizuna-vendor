@@ -33,8 +33,8 @@ and load one shared library beside it:
 |---|---|---|---|
 | `onnxruntime.dll` | 1.24.4 | MIT | `licenses/LICENSE.ONNXRuntime.txt`, `licenses/THIRD-PARTY-NOTICES.ONNXRuntime.txt` |
 
-**The whole executable is therefore conveyed under GPL-3.0-or-later**, exactly
-as `paddleocr.exe` is today. Apache-2.0, BSL-1.0, the zlib licence and
+**The whole executable is therefore conveyed under GPL-3.0-or-later**, as the
+retired `paddleocr.exe` was before it. Apache-2.0, BSL-1.0, the zlib licence and
 libpng-2 are all one-way compatible with GPLv3, so each component keeps its own
 terms inside the combined binary while the binary as a whole is GPL. Whoever
 ships it must offer its corresponding source: the worker under `ppocr/worker/`,
@@ -123,11 +123,9 @@ payload must not be published until all of it is true:
 - [x] A `ppocr` section in `CORRESPONDING_SOURCE.md` with the pinned URL and
       SHA-256 of every input, matching what the build script already records,
       and naming `ppocr/patches/` as the modifications.
-- [x] `ppocr/licenses/` staged into the packaged build the way
-      `paddleocr/licenses/` is, and copied to the notices location by Kizuna's
-      packaging step.
-- [x] The worker source kept beside the binary as its corresponding source, as
-      `paddleocr/worker/` is today.
+- [x] `ppocr/licenses/` staged into the packaged build and copied to the
+      notices location by Kizuna's packaging step.
+- [x] The worker source kept beside the binary as its corresponding source.
 - [x] `THIRD-PARTY-NOTICES.ONNXRuntime.txt` shipped alongside `onnxruntime.dll`
       — it is Microsoft's own notice file for everything statically linked
       inside that DLL, and MIT's "all copies or substantial portions"

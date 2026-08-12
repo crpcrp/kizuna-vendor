@@ -1,15 +1,16 @@
 """Derive the PP-OCRv5 character dictionary and cross-check it.
 
 The recogniser ONNX carries the dictionary in its own metadata, which is a
-better source than the shipped Paddle payload's inference.yml: it binds the
-dictionary to the exact weights being shipped, and it survives the removal of
-paddleocr/ in the cleanup issue.
+better source than the retired Paddle payload's inference.yml was: it binds the
+dictionary to the exact weights being shipped, and it survived the removal of
+paddleocr/.
 
     python extract-keys.py <rec.onnx> <keys.txt> [inference.yml]
 
 With the optional third argument the extracted list is compared against
-PostProcess.character_dict from the Paddle payload. The spike found them
-byte-identical (18383 entries).
+PostProcess.character_dict from a Paddle inference.yml. The spike found them
+byte-identical (18383 entries). No such file is in the repository any more, so
+the argument is only for someone holding an archived copy of that payload.
 
 Requires: pip install onnx  (and pyyaml only for the optional cross-check).
 """

@@ -43,6 +43,37 @@ They do not license Kizuna's own source code.
 - The required copyright, redistribution terms, and no-warranty paragraphs
   accompany the dictionary in `mecab/ipadic/COPYING`.
 
+## PP-OCR ONNX runtime
+
+- `ppocr.exe` combines Kizuna's GPL-3.0-or-later protocol-v1 worker with a
+  modified RapidOcrOnnx `abd498c` pipeline, OpenCV 4.14.0, Clipper 6.4.2,
+  zlib 1.3.2 and libpng 1.6.57. The combined executable is conveyed under
+  GPL-3.0-or-later; its corresponding source, exact patches and build recipe
+  are kept under `ppocr/worker/`, `ppocr/patches/` and
+  `scripts/build-ppocr-onnx-win-x64.ps1`.
+- RapidOcrOnnx is Apache-2.0 and modified. The prominent modification notice is
+  in `ppocr/LICENSING.md`; the patches adapt the official ONNX Runtime include
+  layout, harden session and UTF-8 handling, and add batched fixed-width
+  recognition and profiling hooks. Upstream ships no `NOTICE` file.
+- OpenCV `core`, `imgproc` and `imgcodecs` are built from the pinned unmodified
+  4.14.0 source and statically linked with zlib and libpng. Clipper is vendored
+  by RapidOcrOnnx and statically linked under BSL-1.0.
+- `onnxruntime.dll` and `onnxruntime_providers_shared.dll` are the CPU binaries
+  from Microsoft.ML.OnnxRuntime 1.24.4 and remain separate MIT-licensed works.
+  Microsoft's complete notices accompany them at
+  `ppocr/bin/THIRD-PARTY-NOTICES.ONNXRuntime.txt`.
+- `det.onnx`, `rec.onnx` and `keys.txt` are PP-OCRv5 weights, an ONNX
+  conversion and its embedded dictionary from RapidAI's ModelScope mirror at
+  revision `v3.9.2`. The underlying weights are Copyright © PaddlePaddle
+  Authors and both the weights and conversion are Apache-2.0.
+- The worker uses the static MSVC runtime. Microsoft's prebuilt ONNX Runtime
+  imports `msvcp140.dll`, `msvcp140_1.dll`, `vcruntime140.dll` and
+  `vcruntime140_1.dll`, so those redistributable files accompany it under
+  Microsoft's Distributable Code terms. No Intel MKL component is present.
+- The exact licence and copyright texts accompany the payload under
+  `ppocr/licenses/`; `ppocr/LICENSING.md` records the component-by-component
+  analysis and Apache-2.0 modification notice.
+
 ## PaddleOCR and the Windows OCR runtime
 
 - Build: `paddleocr.exe` combines Kizuna's GPL-3.0-or-later worker entrypoint

@@ -3,30 +3,28 @@
     Verifies the Windows x64 PP-OCR ONNX Runtime worker.
 
 .DESCRIPTION
-    Starts the worker that scripts/build-ppocr-onnx-win-x64.ps1 leaves in its
-    build tree and drives it through the Kizuna JSONL protocol with a committed
+    Verifies the staged payload against SHA256SUMS.txt and manifest.json, then
+    drives its worker through the Kizuna JSONL protocol with a committed
     1920x1080 capture that stands in for a game screen. Checks protocol version
     1 parity point by point, reports the startup time and the warm per-request
     latency, and fails if recognition is wrong, the protocol is broken or the
     warm path exceeds -MaxWarmRecognitionMs.
-
-    Unlike verify-paddleocr-win-x64.ps1 this checks no hashes and no manifest:
-    nothing is staged in ppocr/ yet, so there is nothing to check them against.
-    Those checks arrive with the payload.
 
     The fixture is a committed PNG rather than text drawn at run time: rendering
     it locally would make the result depend on which Japanese fonts happen to be
     installed.
 
 .PARAMETER Runtime
-    The directory the build script staged, holding bin\ppocr.exe,
-    bin\onnxruntime.dll and models\.
+    The staged ppocr/ directory. Defaults to the repository payload.
 
 .PARAMETER MaxWarmRecognitionMs
     Warm-path budget. The default is generous against the ~85 ms a sixteen-core
     developer desktop measures, so that it catches a regression to something
     Paddle-shaped rather than ordinary variation on a slower machine. The
     measured numbers are always printed either way.
+
+.PARAMETER MaxStartupMs
+    Launch-to-ready budget, including model creation and warm-up.
 
 .PARAMETER OverlayPath
     Where to write the fixture with the returned quadrilaterals drawn over it,
@@ -35,8 +33,9 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$Runtime = 'C:\kizuna\build-tools\ppocr\out',
-    [int]$MaxWarmRecognitionMs = 400,
+    [string]$Runtime,
+    [int]$MaxWarmRecognitionMs = 300,
+    [int]$MaxStartupMs = 5000,
     [int]$Repetitions = 12,
     [string]$OverlayPath
 )
@@ -45,11 +44,64 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 $failures = 0
+$RepoRoot = Split-Path -Parent $PSScriptRoot
+if (-not $Runtime) { $Runtime = Join-Path $RepoRoot 'ppocr' }
+
+Write-Host '== Payload integrity =='
+$manifestPath = Join-Path $RepoRoot 'manifest.json'
+$sumsPath = Join-Path $RepoRoot 'SHA256SUMS.txt'
+$manifestBytes = [IO.File]::ReadAllBytes($manifestPath)
+if ($manifestBytes.Length -ge 3 -and $manifestBytes[0] -eq 0xef -and
+    $manifestBytes[1] -eq 0xbb -and $manifestBytes[2] -eq 0xbf) {
+    throw 'manifest.json has a UTF-8 BOM'
+}
+$manifest = [Text.Encoding]::UTF8.GetString($manifestBytes) | ConvertFrom-Json
+$component = @($manifest.payloads | Where-Object {
+        $_.platform -eq 'win32' -and $_.architecture -eq 'x64'
+    } | ForEach-Object { $_.components } | Where-Object { $_.name -eq 'ppocr' })
+if ($component.Count -ne 1) { throw 'manifest.json must contain one win32-x64 ppocr component' }
+
+$recordedSums = @{}
+foreach ($line in Get-Content -LiteralPath $sumsPath) {
+    if ($line -match '^([0-9a-f]{64})\s+(.+)$') { $recordedSums[$Matches[2]] = $Matches[1] }
+}
+$payloadFiles = @(Get-ChildItem -LiteralPath $Runtime -Recurse -File)
+foreach ($file in $payloadFiles) {
+    $relative = $file.FullName.Substring($RepoRoot.Length + 1).Replace('\', '/')
+    if (-not $recordedSums.ContainsKey($relative)) { throw "$relative is missing from SHA256SUMS.txt" }
+    $actual = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($actual -ne $recordedSums[$relative]) { throw "$relative does not match SHA256SUMS.txt" }
+}
+foreach ($sumPath in @($recordedSums.Keys | Where-Object { $_ -like 'ppocr/*' })) {
+    $absolute = Join-Path $RepoRoot ($sumPath.Replace('/', '\'))
+    if (-not (Test-Path -LiteralPath $absolute -PathType Leaf)) {
+        throw "SHA256SUMS.txt records missing file $sumPath"
+    }
+}
+foreach ($entry in @($component.files)) {
+    $absolute = Join-Path $RepoRoot ($entry.path.Replace('/', '\'))
+    if (-not (Test-Path -LiteralPath $absolute -PathType Leaf)) {
+        throw "Manifest records missing file $($entry.path)"
+    }
+    if (-not $recordedSums.ContainsKey($entry.path) -or $recordedSums[$entry.path] -ne $entry.sha256) {
+        throw "Manifest hash mismatch for $($entry.path)"
+    }
+}
+foreach ($licensePath in @($component.licenseFiles)) {
+    $absolute = Join-Path $RepoRoot ($licensePath.Replace('/', '\'))
+    if (-not (Test-Path -LiteralPath $absolute -PathType Leaf)) {
+        throw "Manifest records missing licence $licensePath"
+    }
+    if (-not $recordedSums.ContainsKey($licensePath)) {
+        throw "Manifest licence $licensePath is missing from SHA256SUMS.txt"
+    }
+}
+Write-Host "Verified $($payloadFiles.Count) staged files and the ppocr manifest component"
 
 Write-Host '== Worker tree =='
 $worker = Join-Path $Runtime 'bin\ppocr.exe'
-$detModel = Join-Path $Runtime 'models\ch_PP-OCRv5_det_mobile.onnx'
-$recModel = Join-Path $Runtime 'models\ch_PP-OCRv5_rec_mobile.onnx'
+$detModel = Join-Path $Runtime 'models\det.onnx'
+$recModel = Join-Path $Runtime 'models\rec.onnx'
 $keys = Join-Path $Runtime 'models\keys.txt'
 foreach ($required in @($worker, (Join-Path $Runtime 'bin\onnxruntime.dll'),
         $detModel, $recModel, $keys)) {
@@ -158,6 +210,10 @@ try {
     # with one ASCII word, so this is model load plus a near-empty inference,
     # not the cost of a real capture.
     Write-Host "Startup (launch to ready, models loaded and warmed): $($coldTimer.ElapsedMilliseconds) ms"
+    if ($coldTimer.ElapsedMilliseconds -gt $MaxStartupMs) {
+        Write-Host "Startup exceeded ${MaxStartupMs} ms"
+        $failures++
+    }
 
     $imageBase64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($fixture))
     $times = @()
@@ -344,7 +400,9 @@ foreach ($invalid in $invalidOptions) {
 
 # The coordinates are the one part of the protocol that cannot be checked by
 # reading the JSON: they are only right if they sit on the text.
-if (-not $OverlayPath) { $OverlayPath = Join-Path $Runtime 'fixture-quads.png' }
+if (-not $OverlayPath) {
+    $OverlayPath = Join-Path ([IO.Path]::GetTempPath()) 'kizuna-ppocr-fixture-quads.png'
+}
 Write-Host ''
 Write-Host '== Overlay =='
 Add-Type -AssemblyName System.Drawing

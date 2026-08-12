@@ -1,14 +1,17 @@
 Microsoft runtime code in the PP-OCR ONNX payload
 =================================================
 
-Unlike the PaddleOCR payload, this one redistributes no Visual C++ runtime
-DLLs. The worker and the OpenCV it links are both compiled with
-/MT (CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded), so the C runtime is linked
-statically into `ppocr.exe` and there is no `msvcp140.dll`,
-`vcruntime140.dll`, `vcruntime140_1.dll` or `concrt140.dll` beside it.
+The worker and the OpenCV it links are both compiled with /MT
+(CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded), so their C runtime is linked
+statically into `ppocr.exe`. Microsoft's prebuilt ONNX Runtime package uses
+the dynamic runtime, so its exact dumpbin closure is staged beside it:
 
-  ppocr.exe          static MSVC C runtime, VC143 or newer
-  onnxruntime.dll    Microsoft, MIT-licensed; see LICENSE.ONNXRuntime.txt
+  ppocr.exe                static MSVC C runtime, VC143 or newer
+  onnxruntime.dll          Microsoft, MIT-licensed; see LICENSE.ONNXRuntime.txt
+  msvcp140.dll             Microsoft Distributable Code
+  msvcp140_1.dll           Microsoft Distributable Code
+  vcruntime140.dll         Microsoft Distributable Code
+  vcruntime140_1.dll       Microsoft Distributable Code
 
 `ppocr.exe` and `onnxruntime.dll` both import the Universal CRT
 `api-ms-win-crt-*` API sets, which ship with Windows 10 and 11 and are

@@ -6,10 +6,10 @@ reconstructed later. It covers the dependency set the ONNX Runtime worker will
 be built from, and the licence texts that have to travel with it are already
 committed under `ppocr/licenses/`.
 
-**Nothing here is distributed yet.** No binary is staged in `ppocr/`, so no
-notice obligation has been triggered. The top-level `THIRD_PARTY_NOTICES.md`
-and `CORRESPONDING_SOURCE.md` get their `ppocr` entries when the payload is
-actually staged; the last section lists what those entries must say.
+The staged binary, models, notices and corresponding source are distributed
+together under `ppocr/`. The top-level `THIRD_PARTY_NOTICES.md`,
+`CORRESPONDING_SOURCE.md`, `manifest.json` and `SHA256SUMS.txt` record and
+verify that payload.
 
 This is compliance documentation, not legal advice.
 
@@ -45,12 +45,12 @@ compilation and installation" that GPLv3 §1 asks for.
 `onnxruntime.dll` is a separate work, not derived from the worker, and keeps
 its own MIT terms.
 
-The statically linked MSVC runtime is Microsoft "Distributable Code" and is
-covered by the GPL's system-library exception, being a major component of the
-operating system the executable runs on. Static linking of the CRT is permitted
-by the Visual Studio licence terms; unlike the Paddle payload there are no
-`msvcp140.dll` / `vcruntime140*.dll` files to redistribute, and the Universal
-CRT ships with Windows.
+The worker's statically linked MSVC runtime is Microsoft "Distributable Code"
+and is covered by the GPL's system-library exception, being a major component
+of the operating system the executable runs on. Microsoft's prebuilt
+`onnxruntime.dll` dynamically imports `msvcp140.dll`, `msvcp140_1.dll`,
+`vcruntime140.dll` and `vcruntime140_1.dll`; those redistributable files are
+therefore staged beside it. The Universal CRT API sets ship with Windows.
 
 ## Modification notice — RapidOcrOnnx (Apache-2.0 §4(b))
 
@@ -112,27 +112,27 @@ Japanese and Pinyin in one model. Kizuna uses it for Japanese; the other
 scripts are an inseparable property of the weights, not an added language
 payload.
 
-## What `#16` still has to do at staging time
+## Staging compliance checklist
 
 Nothing below is a blocker for pinning or for building the worker — but the
 payload must not be published until all of it is true:
 
-- [ ] A `## PP-OCR ONNX runtime` section in `THIRD_PARTY_NOTICES.md` carrying
+- [x] A `## PP-OCR ONNX runtime` section in `THIRD_PARTY_NOTICES.md` carrying
       the two tables above, the modification notice, and the GPL-3.0-or-later
       conclusion.
-- [ ] A `ppocr` section in `CORRESPONDING_SOURCE.md` with the pinned URL and
+- [x] A `ppocr` section in `CORRESPONDING_SOURCE.md` with the pinned URL and
       SHA-256 of every input, matching what the build script already records,
       and naming `ppocr/patches/` as the modifications.
-- [ ] `ppocr/licenses/` staged into the packaged build the way
+- [x] `ppocr/licenses/` staged into the packaged build the way
       `paddleocr/licenses/` is, and copied to the notices location by Kizuna's
       packaging step.
-- [ ] The worker source kept beside the binary as its corresponding source, as
+- [x] The worker source kept beside the binary as its corresponding source, as
       `paddleocr/worker/` is today.
-- [ ] `THIRD-PARTY-NOTICES.ONNXRuntime.txt` shipped alongside `onnxruntime.dll`
+- [x] `THIRD-PARTY-NOTICES.ONNXRuntime.txt` shipped alongside `onnxruntime.dll`
       — it is Microsoft's own notice file for everything statically linked
       inside that DLL, and MIT's "all copies or substantial portions"
       requirement reaches it.
-- [ ] `manifest.json` and `SHA256SUMS.txt` entries, so a truncated licence file
+- [x] `manifest.json` and `SHA256SUMS.txt` entries, so a truncated licence file
       fails verification like any other payload file.
 
 If the DirectML route is ever revived, `DirectML.dll` is a Microsoft

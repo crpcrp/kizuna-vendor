@@ -265,15 +265,28 @@ if ($cmakeText.Contains($upstreamEntry)) {
 # defaults have to be restated. Dropping /EHsc compiles the worker's try/catch
 # without unwind semantics, and dropping /GR strips RTTI out from under Paddle.
 $cxxFlags = "/DWIN32 /D_WINDOWS /W3 /GR /EHsc /I `"$compat`""
+$configure = @"
+"$($toolchain.CMake)" -S . -B "$buildDir" -G "$($toolchain.Generator)" -A x64 ^
+  -DPADDLE_LIB="$paddleLib" -DOPENCV_DIR="$opencvDir" ^
+  -DWITH_MKL=ON -DWITH_GPU=OFF -DWITH_STATIC_LIB=ON ^
+  -DCMAKE_CXX_FLAGS="$cxxFlags" || exit /b 1
+"@
+
+# cpp_infer pulls abseil in with add_subdirectory before BUILD_SHARED_LIBS
+# reaches the cache, so on a brand-new build directory abseil compiles as 65
+# static libraries and abseil_dll.dll is never generated -- the build succeeds
+# and staging then fails looking for it. A second configure reads the cached
+# value and generates the target. This is why -Clean used to need two runs.
+if (-not (Test-Path -LiteralPath $buildDir)) {
+    $configure = "$configure`r`n$configure"
+}
+
 $buildScript = Join-Path $WorkRoot 'run-build.bat'
 @"
 @echo off
 call "$($toolchain.Vcvars)" >nul || exit /b 1
 cd /d "$cppInfer" || exit /b 1
-"$($toolchain.CMake)" -S . -B "$buildDir" -G "$($toolchain.Generator)" -A x64 ^
-  -DPADDLE_LIB="$paddleLib" -DOPENCV_DIR="$opencvDir" ^
-  -DWITH_MKL=ON -DWITH_GPU=OFF -DWITH_STATIC_LIB=ON ^
-  -DCMAKE_CXX_FLAGS="$cxxFlags" || exit /b 1
+$configure
 "$($toolchain.CMake)" --build "$buildDir" --config Release -j %NUMBER_OF_PROCESSORS% || exit /b 1
 "@ | Set-Content -LiteralPath $buildScript -Encoding ascii
 

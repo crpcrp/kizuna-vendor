@@ -9,8 +9,9 @@
     worker itself is built by a later issue.
 
     This is the ONNX Runtime successor to build-paddleocr-win-x64.ps1, which
-    keeps working untouched until the cleanup issue retires it. The two never
-    share a cache, so $WorkRoot defaults to C:\kzo rather than C:\kzb.
+    keeps working untouched until the cleanup issue retires it. Every payload's
+    build tree lives in its own directory under C:\kizuna\build-tools, so the
+    two never share a cache and nothing is scattered across the drive.
 
     Like its predecessor this is meant to be run on a developer's Windows x64
     box, not in CI: it needs Visual Studio 2022 or newer with the C++ x64
@@ -86,7 +87,7 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$WorkRoot = 'C:\kzo',
+    [string]$WorkRoot = 'C:\kizuna\build-tools\ppocr',
     [string]$SevenZip = "$env:ProgramFiles\7-Zip\7z.exe",
     [switch]$Clean
 )

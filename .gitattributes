@@ -20,6 +20,7 @@ paddleocr/worker/*.patch text eol=lf
 ppocr/models/keys.txt text eol=lf
 ppocr/patches/*.patch text eol=lf
 ppocr/tools/*.py text eol=lf
+ppocr/licenses/* -text
 
 linux-x64/mpv/bin/mpv filter=lfs diff=lfs merge=lfs -text
 linux-x64/ffmpeg/bin/ffmpeg filter=lfs diff=lfs merge=lfs -text

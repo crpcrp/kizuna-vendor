@@ -16,8 +16,9 @@ verifies and prepares everything else, and the worker build lands with
 Payloads in this repository are built on a developer's Windows x64 machine and
 only the finished artifacts are committed — never the toolchain, the downloaded
 archives, the unpacked dependency trees or the CMake build directories. Those
-live under the build script's `$WorkRoot` (`C:\kzo` by default), outside the
-repository, and are a durable cache that costs no network to reuse.
+live under the build script's `$WorkRoot` — `C:\kizuna\build-tools\ppocr` by
+default, alongside every other payload's build tree — outside the repository,
+and are a durable cache that costs no network to reuse.
 
 So this directory tracks exactly three kinds of file:
 
@@ -26,6 +27,7 @@ So this directory tracks exactly three kinds of file:
 | `models/keys.txt` | An input the build cannot derive without the payload being deleted in the cleanup issue. |
 | `patches/*.patch` | The modifications made to a third-party engine. They are both the build recipe and the Apache-2.0 corresponding-source record. |
 | `tools/extract-keys.py` | Regenerates and cross-checks `keys.txt`, so the derivation survives without the spike branch. |
+| `licenses/*`, `LICENSING.md` | The licence texts that must travel with the binary, and the review that says why. See [LICENSING.md](LICENSING.md). |
 
 Everything else — ONNX Runtime, the OpenCV build, the unpacked engine source,
 the `.onnx` weights — is fetched and rebuilt from the pinned URLs and SHA-256
@@ -88,7 +90,7 @@ verified byte-identical to `PostProcess.character_dict` in
 
 ```powershell
 python ppocr/tools/extract-keys.py `
-  C:\kzo\models\ch_PP-OCRv5_rec_mobile.onnx `
+  C:\kizuna\build-tools\ppocr\models\ch_PP-OCRv5_rec_mobile.onnx `
   ppocr/models/keys.txt `
   paddleocr/models/rec/inference.yml
 ```
@@ -105,6 +107,16 @@ by asserting the runtime's `total keys size(18385)` print:
 - The first entry is U+3000 IDEOGRAPHIC SPACE — a real character, not padding —
   and ten entries are multi-codepoint flag emoji, so a reader that assumes one
   codepoint per line is wrong.
+
+## Licensing
+
+`ppocr.exe` will be conveyed under GPL-3.0-or-later, the way `paddleocr.exe` is
+today: everything it links — RapidOcrOnnx and OpenCV (Apache-2.0), clipper
+(BSL-1.0), zlib, libpng — is one-way compatible with GPLv3, and
+`onnxruntime.dll` beside it stays MIT. [LICENSING.md](LICENSING.md) carries the
+full review, the Apache-2.0 §4(b) modification notice for the patched engine,
+the two-upstream provenance of the model weights, and the checklist the
+staging issue has to satisfy before anything is published.
 
 ## Where the rest of the knowledge lives
 

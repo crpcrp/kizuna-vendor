@@ -1,9 +1,9 @@
 # PP-OCRv5 ONNX worker
 
-This is the CPU ONNX Runtime replacement for `paddleocr/`. On the committed
-1080p fixture it reads the same five Japanese lines in about 80 ms p50 versus
-about 1.5 s for the shipped Paddle worker. The prepared runtime is about 41 MB
-instead of 352 MB.
+This is the Windows Game OCR runtime. It replaced a Paddle Inference payload
+that has since been retired: on the committed 1080p fixture it reads the same
+five Japanese lines in about 80 ms p50 where that worker took about 1.5 s, and
+the prepared runtime is about 41 MB instead of 352 MB.
 
 The complete staged payload lives in this directory. It is built from pinned
 inputs, hashed in `SHA256SUMS.txt`, described by the `ppocr` manifest component,
@@ -43,8 +43,8 @@ cross-platform-compatible runtime.
 
 ## Worker contract
 
-`worker/ppocr_worker.cc` implements the same protocol-v1 JSON-lines contract
-as the Paddle worker. It decodes captures in memory, keeps all non-protocol
+`worker/ppocr_worker.cc` implements the protocol-v1 JSON-lines contract the
+Paddle worker also spoke. It decodes captures in memory, keeps all non-protocol
 logging on stderr, validates the 18,383-entry dictionary, and stays alive after
 bad requests.
 
@@ -97,8 +97,11 @@ Regenerate it with:
 ```powershell
 python ppocr/tools/extract-keys.py `
   C:\kizuna\build-tools\ppocr\models\ch_PP-OCRv5_rec_mobile.onnx `
-  ppocr/models/keys.txt `
-  paddleocr/models/rec/inference.yml
+  ppocr/models/keys.txt
 ```
+
+The tool takes an optional third argument to cross-check the extracted list
+against a Paddle `inference.yml`. No such file is in the repository any more;
+the dictionary now comes from the weights it belongs to.
 
 See [LICENSING.md](LICENSING.md) before staging or redistributing the runtime.

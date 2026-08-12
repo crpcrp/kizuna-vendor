@@ -56,75 +56,17 @@ builds and stages every input.
   SHA-256 `5825fc7ebf84ae7a412be049820b4d86d77620f204a041697b0494669b1742c5`.
   `ppocr/models/keys.txt` is extracted from this model's `character` metadata;
   `ppocr/tools/extract-keys.py` records the reproducible extraction.
+- The all-mobile pair is pinned over the server recognizer on measurement, not
+  on size: across four renderings of a 1920x1080 capture the mobile pair read 19
+  of 20 Japanese lines against the server recognizer's 15 of 20, and faster.
+  Training recipes and configuration for both live with
+  [PaddleOCR 3.7.0](https://github.com/PaddlePaddle/PaddleOCR/tree/v3.7.0).
 
 RapidOcrOnnx is modified by `0001` for the official ONNX Runtime layout,
 session safety and UTF-8 correctness, and by `0002` for batched recognition and
 profiling. `ppocr/LICENSING.md` is the prominent Apache-2.0 §4(b) modification
 notice. Preserve the worker, patches, build script, configuration, exact input
 archives and licence texts for as long as the executable is offered.
-
-## PaddleOCR 3.7.0 (Windows OCR runtime)
-
-`paddleocr.exe` is conveyed under GPL-3.0-or-later, so its corresponding
-source has to be available for as long as the binary is offered:
-`paddleocr/worker/paddleocr_worker.cc` is the worker itself, and
-`scripts/build-paddleocr-win-x64.ps1` is the script that controls compilation
-and installation, pinning every input by SHA-256. The libraries it links are
-Apache-2.0, MIT, BSD, and BSL-1.0 and carry no source-offer duty of their own,
-but this payload is compiled here rather than mirrored, so their build inputs
-are recorded below as well.
-
-- [PaddleOCR 3.7.0 source](https://github.com/PaddlePaddle/PaddleOCR/archive/refs/tags/v3.7.0.tar.gz)
-  (`SHA-256 8e5f1f9ba18c29621d38394b4f72925960640b315281391c3b3c86804f079a73`);
-  only `deploy/cpp_infer` is built.
-- [Paddle Inference 3.2.0 Windows CPU AVX MKL package](https://paddle-inference-lib.bj.bcebos.com/3.2.0/cxx_c/Windows/CPU/x86-64_avx-mkl-vs2019/paddle_inference.zip)
-  (`SHA-256 23a2ea41abaedb7dfb928dc10baa72975d50b7a8ffe28f8e081a16a8977a95b2`),
-  built from [Paddle `e22e2f9a`](https://github.com/PaddlePaddle/Paddle/tree/e22e2f9af7eeced7e3c9582ddb69a617887d3eb9)
-- [OpenCV 4.10.0 Windows package](https://github.com/opencv/opencv/releases/download/4.10.0/opencv-4.10.0-windows.exe)
-  (`SHA-256 bff38466091c313dac21a0b73eea8278316a89c1d434c6f0b10697e087670168`),
-  built from [OpenCV 4.10.0](https://github.com/opencv/opencv/tree/4.10.0)
-- [tronkko/dirent 1.24](https://github.com/tronkko/dirent/tree/1.24)
-  (`SHA-256 7383044a375d481ac8ad7ec2f43151263eca792f085001a8020cc590114a06a6`
-  for `include/dirent.h`)
-- PaddleOCR's CMake dependencies are downloaded and verified before configure:
-  Abseil (`SHA-256 ab51954baa519cb2c11fb461b0bdfd32836779ff3f3e50e5b845b0c80374ed6a`),
-  Clipper 6.4.2 (`SHA-256 54ae753a24fcac5386416ea30ac1599cac60b00c27dab0d4f66696155b01e2be`),
-  and nlohmann/json (`SHA-256 e04437150e0f302346e41501a2c6c918e87f57a4b605b8770601c9d8cf2b541a`).
-- Toolchain: the installed MSVC v143 (Visual Studio 2022 Build Tools), CMake
-  generator `Visual Studio 17 2022`, architecture x64, configuration Release,
-  with `WITH_MKL=ON`, `WITH_GPU=OFF`, and `WITH_STATIC_LIB=ON`.
-
-The build adds the `dirent.h` shim include directory and rewrites the `set(SRCS
-cli.cc )` line in `deploy/cpp_infer/CMakeLists.txt` to `set(SRCS
-kizuna_worker.cc )`, so PaddleOCR's source list uses the GPL-3.0-or-later
-Kizuna worker entrypoint instead of its one-shot CLI. The CMake target keeps
-its upstream `ppocr` name and the executable is renamed to `paddleocr.exe` when
-it is staged, which lets the build directory stay incremental across reruns. The
-worker constructs the pipeline configuration in memory, loads and warms the
-models once, and serves Kizuna protocol v1 until standard input closes.
-`mklml.dll` and `libiomp5md.dll` inside the Paddle Inference package are
-byte-identical to Intel's
-[`mklml_win_2019.0.5.20190502.zip`](https://paddlepaddledeps.bj.bcebos.com/mklml_win_2019.0.5.20190502.zip)
-(`SHA-256 535857b17643d7f7546b58fc621244e7cfcc4fff2aa2ebd3fc5b4e126bfc36cf`),
-and `opencv_world4100.dll` is byte-identical to the OpenCV package's copy;
-both were checked when this payload was built. Repeat those checks whenever
-the payload changes.
-
-## PP-OCRv5 models
-
-- [Detection `PP-OCRv5_mobile_det`](https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/PP-OCRv5_mobile_det_infer.tar)
-  (`SHA-256 50446e5d01ac2a73d5319c89513281f6578414c888c602f9af13f93feefffc58`)
-- [Recognition `PP-OCRv5_mobile_rec`](https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/PP-OCRv5_mobile_rec_infer.tar)
-  (`SHA-256 566b9512b34e34a9f0db54d87b51fa5a0b9ed2cf1ab7e49728cc0b8b5a64f414`)
-- Both are extracted unmodified into `models/det` and `models/rec`; their
-  `inference.json`,
-  `inference.pdiparams`, and `inference.yml` files match the archives.
-- The all-mobile pair was chosen over the server recognizer on measurement, not
-  on size: across four renderings of a 1920x1080 capture it read 19 of 20
-  Japanese lines at 1.6-2.0 s per frame against the server recognizer's 15 of
-  20 at 2.1-2.6 s.
-- Model training recipes and configuration live with
-  [PaddleOCR 3.7.0](https://github.com/PaddlePaddle/PaddleOCR/tree/v3.7.0).
 
 For each future binary update, archive the exact source, build scripts, patches,
 configuration, and license texts beside the binary release; update all hashes.

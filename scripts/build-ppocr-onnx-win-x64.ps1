@@ -9,10 +9,10 @@
     ppocr.exe. It leaves a disposable runnable worker in $WorkRoot\out and
     stages the complete CPU-only payload under ppocr/.
 
-    This is the ONNX Runtime successor to build-paddleocr-win-x64.ps1, which
-    keeps working untouched until the cleanup issue retires it. Every payload's
-    build tree lives in its own directory under C:\kizuna\build-tools, so the
-    two never share a cache and nothing is scattered across the drive.
+    This replaced build-paddleocr-win-x64.ps1, which has since been retired
+    along with its payload. Every payload's build tree lives in its own
+    directory under C:\kizuna\build-tools, so nothing is scattered across the
+    drive.
 
     Like its predecessor this is meant to be run on a developer's Windows x64
     box, not in CI: it needs Visual Studio 2022 or newer with the C++ x64
@@ -23,7 +23,7 @@
 
     Why this route at all: measured on a Ryzen 7 5800X3D, PP-OCRv5 on ONNX
     Runtime CPU reads the same five Japanese lines out of
-    scripts/testdata/game-capture-1080p.png in 80 ms p50 against the shipped
+    scripts/testdata/game-capture-1080p.png in 80 ms p50 against the retired
     Paddle Inference worker's 1525 ms, from a 39 MB payload against 352 MB.
     See https://github.com/crpcrp/kizuna-vendor/issues/11 for the full spike.
 
@@ -54,12 +54,12 @@
 
     2. The character dictionary.
 
-       Committed as ppocr/models/keys.txt rather than regenerated, because the
-       cleanup issue deletes paddleocr/ and a build that reads from a directory
-       being removed would break. It was extracted from the recogniser ONNX's
-       own `character` metadata (spike/ppocr-onnx-cpu/tools/extract-keys.py on
-       branch spike/ppocr-onnx-cpu regenerates it) and verified byte-identical
-       to PostProcess.character_dict in paddleocr/models/rec/inference.yml.
+       Committed as ppocr/models/keys.txt rather than regenerated, so the build
+       does not depend on a file outside its own payload. It was extracted from
+       the recogniser ONNX's own `character` metadata, which ppocr/tools/
+       extract-keys.py reproduces, and was verified byte-identical to
+       PostProcess.character_dict in the Paddle payload before that payload was
+       retired.
 
        18383 entries, LF, no leading blank line. The recogniser has 18385
        output classes: index 0 is the CTC blank, 1..18383 the dictionary, 18384
@@ -147,7 +147,7 @@ $Archives = @(
     },
     @{
         # PP-OCRv5's "ch" recogniser is the multilingual one and covers Japanese
-        # in the same weights, matching what the Paddle payload loads today.
+        # in the same weights the Paddle payload used to load.
         Name    = 'ch_PP-OCRv5_rec_mobile.onnx'
         Url     = "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/$ModelRevision/onnx/PP-OCRv5/rec/ch_PP-OCRv5_rec_mobile.onnx"
         Sha256  = '5825fc7ebf84ae7a412be049820b4d86d77620f204a041697b0494669b1742c5'

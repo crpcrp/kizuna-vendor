@@ -65,8 +65,9 @@ were changed. This is that notice, and it is deliberately not buried:
 > `scripts/build-ppocr-onnx-win-x64.ps1`:
 >
 > - `0001` — build against the official ONNX Runtime include layout, initialise
->   every `Ort::Session*`, strip a trailing CR when reading `keys.txt`, and
->   widen model paths as UTF-8.
+>   every `Ort::Session*`, open `keys.txt` through its UTF-8 path, strip a
+>   trailing CR from its lines, widen model paths as UTF-8, and correct tensor
+>   counts and unclip-result iteration.
 > - `0002` — add batched fixed-width recognition and session profiling hooks.
 >
 > The files affected are `include/AngleNet.h`, `include/CrnnNet.h`,

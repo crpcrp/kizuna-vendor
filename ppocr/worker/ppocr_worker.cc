@@ -1,5 +1,18 @@
 // Copyright (C) 2026 Kizuna contributors
 // SPDX-License-Identifier: GPL-3.0-or-later
+//
+// Worker options (there is no --help):
+//   --protocol-version 1, --lang japan, --det-model PATH, --rec-model PATH,
+//   --keys PATH                                      required
+//   --det-side-len N                                 default 960, 1..4096
+//   --det-limit-type max                             only supported policy
+//   --det-thresh F, --det-box-thresh F               defaults 0.3, 0.6; [0,1]
+//   --det-unclip-ratio F                             default 1.5; (0,10]
+//   --rec-score-thresh F                             default 0; [0,1]
+//   --cpu-threads N                                  physical cores, capped at 16
+//   --rec-batch-size N, --rec-width N                defaults 8, 320
+//   --mkldnn-cache, --det-model-name, --rec-model-name VALUE
+//                                                     accepted but ignored
 
 #define NOMINMAX
 #include <Windows.h>
@@ -12,6 +25,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <cwchar>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
@@ -27,19 +42,11 @@ namespace {
 
 constexpr int kProtocolVersion = 1;
 constexpr int kMaxRegions = 512;
-
-// Fixed for this port, matching what the Paddle worker asks PaddleOCR for
-// today. Issue #14 turns them into command-line options; until then a payload
-// cannot be swept without rebuilding, which is the same position the Paddle
-// worker started from.
-constexpr int kDetectionSideLength = 960;
-constexpr float kBoxScoreThreshold = 0.6f;
-constexpr float kBoxThreshold = 0.3f;
-constexpr float kUnclipRatio = 1.5f;
-// One [N,3,48,320] Run rather than upstream's one-Run-per-region loop; see
-// ppocr/patches/0002. Measured at 90 -> 80 ms p50 on the fixture.
-constexpr int kRecognitionBatchSize = 8;
-constexpr int kRecognitionWidth = 320;
+constexpr int kMaxDetectionSideLength = 4096;
+constexpr int kMaxCpuThreads = 256;
+constexpr int kMaxRecognitionBatchSize = 64;
+constexpr int kMaxRecognitionWidth = 4096;
+constexpr long long kMaxRecognitionBatchPixels = 32768;
 
 // The recogniser has 18385 output classes: index 0 is the CTC blank, 1..18383
 // the dictionary, and 18384 a space. CrnnNet supplies the blank and the space
@@ -282,15 +289,49 @@ private:
     if (index_ < text_.size() && text_[index_] == '-') {
       ++index_;
     }
-    while (index_ < text_.size() &&
-           (std::isdigit(static_cast<unsigned char>(text_[index_])) != 0 ||
-            text_[index_] == '.' || text_[index_] == 'e' ||
-            text_[index_] == 'E' || text_[index_] == '+' ||
-            text_[index_] == '-')) {
-      ++index_;
-    }
-    if (index_ == start) {
+    if (index_ >= text_.size()) {
       Fail();
+    }
+    if (text_[index_] == '0') {
+      ++index_;
+      if (index_ < text_.size() &&
+          std::isdigit(static_cast<unsigned char>(text_[index_])) != 0) {
+        Fail();
+      }
+    } else if (text_[index_] >= '1' && text_[index_] <= '9') {
+      do {
+        ++index_;
+      } while (index_ < text_.size() &&
+               std::isdigit(static_cast<unsigned char>(text_[index_])) != 0);
+    } else {
+      Fail();
+    }
+    if (index_ < text_.size() && text_[index_] == '.') {
+      ++index_;
+      if (index_ >= text_.size() ||
+          std::isdigit(static_cast<unsigned char>(text_[index_])) == 0) {
+        Fail();
+      }
+      while (index_ < text_.size() &&
+             std::isdigit(static_cast<unsigned char>(text_[index_])) != 0) {
+        ++index_;
+      }
+    }
+    if (index_ < text_.size() &&
+        (text_[index_] == 'e' || text_[index_] == 'E')) {
+      ++index_;
+      if (index_ < text_.size() &&
+          (text_[index_] == '+' || text_[index_] == '-')) {
+        ++index_;
+      }
+      if (index_ >= text_.size() ||
+          std::isdigit(static_cast<unsigned char>(text_[index_])) == 0) {
+        Fail();
+      }
+      while (index_ < text_.size() &&
+             std::isdigit(static_cast<unsigned char>(text_[index_])) != 0) {
+        ++index_;
+      }
     }
     const std::string token = text_.substr(start, index_ - start);
     try {
@@ -519,6 +560,17 @@ struct Options {
   std::string detection_model;
   std::string recognition_model;
   std::string keys;
+  int detection_side_length = 960;
+  std::string detection_limit_type = "max";
+  float detection_threshold = 0.3f;
+  float detection_box_threshold = 0.6f;
+  float detection_unclip_ratio = 1.5f;
+  float recognition_score_threshold = 0.0f;
+  int cpu_threads = 0;
+  bool cpu_threads_set = false;
+  int recognition_batch_size = 8;
+  int recognition_width = 320;
+  std::vector<std::string> ignored_options;
 };
 
 // The engine sets ONNX Runtime's intra- and inter-op thread counts from one
@@ -597,19 +649,64 @@ private:
   int saved_ = -1;
 };
 
-std::string RequiredValue(int argc, char **argv, int &index) {
-  if (index + 1 >= argc) {
-    throw std::runtime_error(std::string("missing value for ") + argv[index]);
+std::string WideToUtf8(const wchar_t *value) {
+  const int length = static_cast<int>(std::wcslen(value));
+  if (length == 0) {
+    return {};
   }
-  return argv[++index];
+  const int needed = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, value,
+                                         length, nullptr, 0, nullptr, nullptr);
+  if (needed == 0) {
+    throw std::runtime_error("invalid worker options");
+  }
+  std::string utf8(static_cast<size_t>(needed), '\0');
+  if (WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, value, length,
+                          utf8.data(), needed, nullptr, nullptr) == 0) {
+    throw std::runtime_error("invalid worker options");
+  }
+  return utf8;
 }
 
-Options ParseOptions(int argc, char **argv) {
+std::string RequiredValue(int argc, wchar_t **argv, int &index) {
+  if (index + 1 >= argc) {
+    throw std::runtime_error("missing value for " + WideToUtf8(argv[index]));
+  }
+  return WideToUtf8(argv[++index]);
+}
+
+int ParseInteger(const std::string &value) {
+  try {
+    size_t consumed = 0;
+    const int parsed = std::stoi(value, &consumed);
+    if (consumed != value.size()) {
+      throw std::runtime_error("invalid worker options");
+    }
+    return parsed;
+  } catch (const std::logic_error &) {
+    throw std::runtime_error("invalid worker options");
+  }
+}
+
+float ParseFloat(const std::string &value) {
+  try {
+    size_t consumed = 0;
+    const float parsed = std::stof(value, &consumed);
+    if (consumed != value.size() || !std::isfinite(parsed)) {
+      throw std::runtime_error("invalid worker options");
+    }
+    return parsed;
+  } catch (const std::logic_error &) {
+    throw std::runtime_error("invalid worker options");
+  }
+}
+
+Options ParseOptions(int argc, wchar_t **argv) {
   Options options;
   for (int index = 1; index < argc; ++index) {
-    const std::string name = argv[index];
+    const std::string name = WideToUtf8(argv[index]);
     if (name == "--protocol-version") {
-      options.protocol_version = std::stoi(RequiredValue(argc, argv, index));
+      options.protocol_version =
+          ParseInteger(RequiredValue(argc, argv, index));
     } else if (name == "--lang") {
       options.language = RequiredValue(argc, argv, index);
     } else if (name == "--det-model") {
@@ -618,21 +715,83 @@ Options ParseOptions(int argc, char **argv) {
       options.recognition_model = RequiredValue(argc, argv, index);
     } else if (name == "--keys") {
       options.keys = RequiredValue(argc, argv, index);
+    } else if (name == "--det-side-len") {
+      options.detection_side_length =
+          ParseInteger(RequiredValue(argc, argv, index));
+    } else if (name == "--det-limit-type") {
+      options.detection_limit_type = RequiredValue(argc, argv, index);
+    } else if (name == "--det-thresh") {
+      options.detection_threshold =
+          ParseFloat(RequiredValue(argc, argv, index));
+    } else if (name == "--det-box-thresh") {
+      options.detection_box_threshold =
+          ParseFloat(RequiredValue(argc, argv, index));
+    } else if (name == "--det-unclip-ratio") {
+      options.detection_unclip_ratio =
+          ParseFloat(RequiredValue(argc, argv, index));
+    } else if (name == "--rec-score-thresh") {
+      options.recognition_score_threshold =
+          ParseFloat(RequiredValue(argc, argv, index));
+    } else if (name == "--cpu-threads") {
+      options.cpu_threads = ParseInteger(RequiredValue(argc, argv, index));
+      options.cpu_threads_set = true;
+    } else if (name == "--rec-batch-size") {
+      options.recognition_batch_size =
+          ParseInteger(RequiredValue(argc, argv, index));
+    } else if (name == "--rec-width") {
+      options.recognition_width =
+          ParseInteger(RequiredValue(argc, argv, index));
+    } else if (name == "--mkldnn-cache" || name == "--det-model-name" ||
+               name == "--rec-model-name") {
+      RequiredValue(argc, argv, index);
+      if (std::find(options.ignored_options.begin(),
+                    options.ignored_options.end(),
+                    name) == options.ignored_options.end()) {
+        options.ignored_options.push_back(name);
+      }
     } else {
       throw std::runtime_error("unknown argument: " + name);
     }
   }
 
+  if (options.detection_limit_type != "max") {
+    throw std::runtime_error(
+        "invalid worker options: --det-limit-type supports max only");
+  }
+
   if (options.protocol_version != kProtocolVersion ||
       options.language != "japan" || options.detection_model.empty() ||
-      options.recognition_model.empty() || options.keys.empty()) {
+      options.recognition_model.empty() || options.keys.empty() ||
+      options.detection_side_length < 1 ||
+      options.detection_side_length > kMaxDetectionSideLength ||
+      options.detection_threshold < 0.0f ||
+      options.detection_threshold > 1.0f ||
+      options.detection_box_threshold < 0.0f ||
+      options.detection_box_threshold > 1.0f ||
+      options.detection_unclip_ratio <= 0.0f ||
+      options.detection_unclip_ratio > 10.0f ||
+      options.recognition_score_threshold < 0.0f ||
+      options.recognition_score_threshold > 1.0f ||
+      (options.cpu_threads_set && options.cpu_threads < 1) ||
+      options.cpu_threads > kMaxCpuThreads ||
+      options.recognition_batch_size < 1 ||
+      options.recognition_batch_size > kMaxRecognitionBatchSize ||
+      options.recognition_width < 1 ||
+      options.recognition_width > kMaxRecognitionWidth ||
+      static_cast<long long>(options.recognition_batch_size) *
+              options.recognition_width >
+          kMaxRecognitionBatchPixels) {
     throw std::runtime_error("invalid worker options");
+  }
+  if (!options.cpu_threads_set) {
+    options.cpu_threads = DefaultCpuThreads();
   }
   return options;
 }
 
 bool FileExists(const std::string &path) {
-  const DWORD attributes = GetFileAttributesA(path.c_str());
+  const std::wstring wide_path = strToWstr(path);
+  const DWORD attributes = GetFileAttributesW(wide_path.c_str());
   return attributes != INVALID_FILE_ATTRIBUTES &&
          (attributes & FILE_ATTRIBUTE_DIRECTORY) == 0;
 }
@@ -646,7 +805,7 @@ void ValidateModel(const std::string &path) {
 }
 
 void ValidateDictionary(const std::string &path) {
-  std::ifstream input(path);
+  std::ifstream input(std::filesystem::u8path(path));
   if (!input) {
     throw std::runtime_error("dictionary file is missing: " + path);
   }
@@ -689,20 +848,27 @@ struct Region {
 // their sessions and weights are paid for once.
 class Engine {
 public:
-  Engine(const Options &options, int cpu_threads) {
+  explicit Engine(const Options &options) : options_(options) {
     // setNumThread configures the session options, so both calls have to come
     // before the sessions are created.
-    detection_.setNumThread(cpu_threads);
-    recognition_.setNumThread(cpu_threads);
+    detection_.setNumThread(options.cpu_threads);
+    recognition_.setNumThread(options.cpu_threads);
     const StdoutToStderr quiet;
     detection_.initModel(options.detection_model);
     recognition_.initModel(options.recognition_model, options.keys);
   }
 
   std::vector<Region> Run(cv::Mat &image) {
-    ScaleParam scale = getScaleParam(image, kDetectionSideLength);
+    ScaleParam scale = getScaleParam(image, options_.detection_side_length);
+    if (scale.dstWidth < 32 || scale.dstHeight < 32 ||
+        scale.dstWidth > kMaxDetectionSideLength ||
+        scale.dstHeight > kMaxDetectionSideLength || scale.dstWidth % 32 != 0 ||
+        scale.dstHeight % 32 != 0) {
+      throw std::runtime_error("invalid detection tensor dimensions");
+    }
     std::vector<TextBox> boxes = detection_.getTextBoxes(
-        image, scale, kBoxScoreThreshold, kBoxThreshold, kUnclipRatio);
+        image, scale, options_.detection_box_threshold,
+        options_.detection_threshold, options_.detection_unclip_ratio);
 
     std::vector<cv::Mat> crops;
     std::vector<std::vector<cv::Point>> quads;
@@ -717,19 +883,21 @@ public:
     }
 
     const std::vector<TextLine> lines = recognition_.getTextLinesBatched(
-        crops, kRecognitionBatchSize, kRecognitionWidth);
+        crops, options_.recognition_batch_size, options_.recognition_width);
 
     std::vector<Region> regions;
     regions.reserve(lines.size());
     for (size_t index = 0; index < lines.size() && index < quads.size();
          ++index) {
       // An empty line carries nothing and Kizuna discards it on arrival.
-      if (lines[index].text.empty()) {
+      const float confidence = MeanScore(lines[index].charScores);
+      if (lines[index].text.empty() ||
+          confidence < options_.recognition_score_threshold) {
         continue;
       }
       Region region;
       region.text = lines[index].text;
-      region.confidence = MeanScore(lines[index].charScores);
+      region.confidence = confidence;
       region.quad = quads[index];
       regions.push_back(std::move(region));
     }
@@ -744,8 +912,8 @@ public:
   // when detection found nothing in the frame it was given.
   void RunRecognition(cv::Mat &image) {
     std::vector<cv::Mat> crops{image};
-    recognition_.getTextLinesBatched(crops, kRecognitionBatchSize,
-                                     kRecognitionWidth);
+    recognition_.getTextLinesBatched(crops, options_.recognition_batch_size,
+                                     options_.recognition_width);
   }
 
 private:
@@ -823,6 +991,7 @@ private:
 
   DbNet detection_;
   CrnnNet recognition_;
+  Options options_;
 };
 
 // A small strip rather than a real capture: on CPU the first inference costs no
@@ -899,7 +1068,7 @@ std::string Recognize(Engine &engine, const JsonObject &request) {
 
 } // namespace
 
-int main(int argc, char **argv) {
+int wmain(int argc, wchar_t **argv) {
   std::ios::sync_with_stdio(false);
 
   try {
@@ -908,7 +1077,10 @@ int main(int argc, char **argv) {
     ValidateModel(options.recognition_model);
     ValidateDictionary(options.keys);
 
-    Engine engine(options, DefaultCpuThreads());
+    for (const std::string &name : options.ignored_options) {
+      std::cerr << "note: " << name << " is accepted for compatibility and ignored\n";
+    }
+    Engine engine(options);
     WarmUp(engine);
 
     std::string ready = "{\"version\":";

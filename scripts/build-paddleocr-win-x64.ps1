@@ -28,11 +28,14 @@
 
 .NOTES
     MSBuild's FileTracker fails once paths approach MAX_PATH, so the build runs
-    under a short working root (C:\kzb by default) rather than in-tree.
+    under a working root near the root of the drive rather than in-tree. Every
+    payload's build tree lives in its own directory under C:\kizuna\build-tools
+    so nothing is scattered across the drive; keep any replacement short for
+    the same reason.
 #>
 [CmdletBinding()]
 param(
-    [string]$WorkRoot = 'C:\kzb',
+    [string]$WorkRoot = 'C:\kizuna\build-tools\paddleocr',
     [string]$SevenZip = "$env:ProgramFiles\7-Zip\7z.exe",
     [switch]$Clean
 )

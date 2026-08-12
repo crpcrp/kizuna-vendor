@@ -9,10 +9,12 @@ Subject: [PATCH 1/3] Build against the official ONNX Runtime layout and stop
 - Initialise every Ort::Session* to nullptr. Upstream leaves them wild, so any
   failure before initModel turns a reportable error into an access violation in
   the destructor, which makes a clean fallback impossible.
-- Strip a trailing CR when reading keys.txt, so a CRLF copy cannot silently
-  corrupt every decoded character.
+- Open keys.txt as UTF-8 and strip a trailing CR, so install paths and CRLF
+  copies cannot corrupt recognition.
 - Widen model paths with MultiByteToWideChar(CP_UTF8) instead of byte-by-byte,
   which mangled any non-ASCII path.
+- Keep tensor element counts in int64_t, use the portable size_t format, and
+  iterate each unclip result by its own length.
 ---
  include/AngleNet.h    |  4 ++--
  include/CrnnNet.h     |  4 ++--
@@ -20,9 +22,10 @@ Subject: [PATCH 1/3] Build against the official ONNX Runtime layout and stop
  include/OcrLiteImpl.h |  2 +-
  include/OcrUtils.h    |  2 +-
  src/AngleNet.cpp      |  2 +-
- src/CrnnNet.cpp       |  5 ++++-
- src/OcrUtils.cpp      | 13 +++++++++++++
- 8 files changed, 30 insertions(+), 10 deletions(-)
+ src/CrnnNet.cpp       | 12 ++++++++----
+ src/DbNet.cpp         |  2 +-
+ src/OcrUtils.cpp      | 18 ++++++++++++++++--
+ 9 files changed, 38 insertions(+), 16 deletions(-)
 
 diff --git a/include/AngleNet.h b/include/AngleNet.h
 index d14503c..25de290 100644
@@ -134,10 +137,14 @@ index b26dce8..7345127 100644
  
  void AngleNet::setGpuIndex(int gpuIndex) {
 diff --git a/src/CrnnNet.cpp b/src/CrnnNet.cpp
-index 2800e59..330b9c8 100644
+index 2800e59..78d033c 100644
 --- a/src/CrnnNet.cpp
 +++ b/src/CrnnNet.cpp
-@@ -4,7 +4,7 @@
+@@ -1,10 +1,11 @@
+ #include "CrnnNet.h"
+ #include "OcrUtils.h"
++#include <filesystem>
+ #include <fstream>
  #include <numeric>
  
  #ifdef __DIRECTML__
@@ -146,7 +153,10 @@ index 2800e59..330b9c8 100644
  #endif
  
  void CrnnNet::setGpuIndex(int gpuIndex) {
-@@ -79,6 +79,9 @@ void CrnnNet::initModel(const std::string &pathStr, const std::string &keysPath)
+@@ -78,8 +79,11 @@ void CrnnNet::initModel(const std::string &pathStr, const std::string &keysPath)
+     //load keys
+-    std::ifstream in(keysPath.c_str());
++    std::ifstream in(std::filesystem::u8path(keysPath));
      std::string line;
      if (in) {
          while (getline(in, line)) {// line中不包括每行的换行符
@@ -156,6 +166,35 @@ index 2800e59..330b9c8 100644
              keys.push_back(line);
          }
      } else {
+@@ -87,5 +91,5 @@ void CrnnNet::initModel(const std::string &pathStr, const std::string &keysPath)
+     }
+     keys.insert(keys.begin(), "#");
+     keys.emplace_back(" ");
+-    printf("total keys size(%lu)\n", keys.size());
++    printf("total keys size(%zu)\n", keys.size());
+ }
+@@ -140,7 +144,7 @@ TextLine CrnnNet::getTextLine(const cv::Mat &src) {
+                                      inputNames.size(), outputNames.data(), outputNames.size());
+     assert(outputTensor.size() == 1 && outputTensor.front().IsTensor());
+     std::vector<int64_t> outputShape = outputTensor[0].GetTensorTypeAndShapeInfo().GetShape();
+-    int64_t outputCount = std::accumulate(outputShape.begin(), outputShape.end(), 1,
++    int64_t outputCount = std::accumulate(outputShape.begin(), outputShape.end(), int64_t{1},
+                                           std::multiplies<int64_t>());
+     float *floatArray = outputTensor.front().GetTensorMutableData<float>();
+     std::vector<float> outputData(floatArray, floatArray + outputCount);
+diff --git a/src/DbNet.cpp b/src/DbNet.cpp
+index 8c44ab5..8cbe023 100644
+--- a/src/DbNet.cpp
++++ b/src/DbNet.cpp
+@@ -135,7 +135,7 @@ DbNet::getTextBoxes(cv::Mat &src, ScaleParam &s, float boxScoreThresh, float boxT
+                                      inputNames.size(), outputNames.data(), outputNames.size());
+     assert(outputTensor.size() == 1 && outputTensor.front().IsTensor());
+     std::vector<int64_t> outputShape = outputTensor[0].GetTensorTypeAndShapeInfo().GetShape();
+-    int64_t outputCount = std::accumulate(outputShape.begin(), outputShape.end(), 1,
++    int64_t outputCount = std::accumulate(outputShape.begin(), outputShape.end(), int64_t{1},
+                                           std::multiplies<int64_t>());
+     float *floatArray = outputTensor.front().GetTensorMutableData<float>();
+     std::vector<float> outputData(floatArray, floatArray + outputCount);
 diff --git a/src/OcrUtils.cpp b/src/OcrUtils.cpp
 index 7c3ea3f..c9b0ca4 100755
 --- a/src/OcrUtils.cpp
@@ -187,6 +226,15 @@ index 7c3ea3f..c9b0ca4 100755
  }
  
  ScaleParam getScaleParam(cv::Mat &src, const float scale) {
+@@ -277,6 +290,7 @@ cv::RotatedRect unClip(std::vector<cv::Point2f> box, float unClipRatio) {
+     for (size_t j = 0; j < soln.size(); j++) {
+-        for (size_t i = 0; i < soln[soln.size() - 1].size(); i++) {
+-            points.emplace_back(soln[j][i].X, soln[j][i].Y);
++        for (size_t i = 0; i < soln[j].size(); i++) {
++            points.emplace_back(static_cast<float>(soln[j][i].X),
++                                static_cast<float>(soln[j][i].Y));
+         }
+     }
+     cv::RotatedRect res;
 -- 
 2.37.3.windows.1
-

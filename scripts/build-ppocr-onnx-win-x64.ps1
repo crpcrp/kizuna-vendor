@@ -288,11 +288,13 @@ Assert-Path -Path $ortLib -What 'the ONNX Runtime import library'
 Assert-Path -Path $ortDll -What 'the ONNX Runtime runtime library'
 Assert-Path -Path (Join-Path $opencvSrc 'CMakeLists.txt') -What 'the OpenCV sources'
 
-# The engine tree is patched exactly once, right after it is unpacked. The marker
-# records which patches produced the tree that is there now, so a rerun neither
-# re-applies them onto an already-patched checkout nor silently reuses a tree
-# built from a different patch set.
+# Hash patch content so editing a patch cannot silently reuse stale sources.
 $patchMarker = Join-Path $engineRoot '.kizuna-patched'
+$patchState = @($Patches | ForEach-Object {
+    $path = Join-Path $Payload "patches\$_"
+    Assert-Path -Path $path -What "the patch $_"
+    "$_ $((Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant())"
+})
 if ($paths.ContainsKey('rapidocronnx-src.tar.gz')) {
     & tar -xzf $paths['rapidocronnx-src.tar.gz'] -C $WorkRoot
     if ($LASTEXITCODE -ne 0) { throw 'Could not extract the RapidOcrOnnx source' }
@@ -312,7 +314,7 @@ if ($paths.ContainsKey('rapidocronnx-src.tar.gz')) {
         if ($LASTEXITCODE -ne 0) { throw "Failed to apply $patch to $engineRoot" }
         Write-Host "Applied $patch"
     }
-    Set-Content -LiteralPath $patchMarker -Value $Patches -Encoding ascii
+    Set-Content -LiteralPath $patchMarker -Value $patchState -Encoding ascii
 } else {
     if (-not (Test-Path -LiteralPath $patchMarker)) {
         # Only reachable after a patch was rejected: the tree is unpacked but
@@ -320,10 +322,10 @@ if ($paths.ContainsKey('rapidocronnx-src.tar.gz')) {
         throw "$engineRoot is unpatched or half-patched; rerun with -Clean"
     }
     $applied = @(Get-Content -LiteralPath $patchMarker)
-    if (Compare-Object -ReferenceObject $applied -DifferenceObject $Patches -SyncWindow 0) {
-        throw "$engineRoot was patched with a different set; rerun with -Clean"
+    if (Compare-Object -ReferenceObject $applied -DifferenceObject $patchState -SyncWindow 0) {
+        throw "$engineRoot was patched with different content; rerun with -Clean"
     }
-    Write-Host "Reusing the patched engine source ($($applied.Count) patches)"
+    Write-Host "Reusing the patched engine source ($($Patches.Count) patches)"
 }
 
 # Minimal static OpenCV: core, imgproc and imgcodecs with PNG only, static CRT,

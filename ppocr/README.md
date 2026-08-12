@@ -1,143 +1,95 @@
-# `ppocr/` — PP-OCRv5 on ONNX Runtime (in progress)
+# PP-OCRv5 ONNX worker
 
-The replacement for `paddleocr/`: the same PP-OCRv5 mobile detector and
-recogniser, run through ONNX Runtime instead of Paddle Inference. Measured on a
-Ryzen 7 5800X3D against `scripts/testdata/game-capture-1080p.png`, it reads the
-same five Japanese lines in **80 ms p50 against the shipped worker's 1525 ms**,
-from a **39 MB payload against 352 MB**.
+This is the CPU ONNX Runtime replacement for `paddleocr/`. On the committed
+1080p fixture it reads the same five Japanese lines in about 80 ms p50 versus
+about 1.5 s for the shipped Paddle worker. The prepared runtime is about 39 MB
+instead of 352 MB.
 
-Nothing is staged here yet. This directory holds the sources and inputs that
-have to be version-controlled; `scripts/build-ppocr-onnx-win-x64.ps1` downloads,
-verifies and prepares everything else, builds `ppocr.exe` and leaves it runnable
-in its build tree. Staging the payload itself — the binaries, the manifest
-entries, the checksums and the notices — lands with
-[#16](https://github.com/crpcrp/kizuna-vendor/issues/16).
+Nothing is staged as a payload yet. Issue
+[#16](https://github.com/crpcrp/kizuna-vendor/issues/16) adds binaries,
+checksums, manifest entries, and notices.
 
-## What is committed, and what is not
+## Build and verify
 
-Payloads in this repository are built on a developer's Windows x64 machine and
-only the finished artifacts are committed — never the toolchain, the downloaded
-archives, the unpacked dependency trees or the CMake build directories. Those
-live under the build script's `$WorkRoot` — `C:\kizuna\build-tools\ppocr` by
-default, alongside every other payload's build tree — outside the repository,
-and are a durable cache that costs no network to reuse.
-
-So this directory tracks exactly these kinds of file:
-
-| Path | Why it is in git |
-|---|---|
-| `worker/*` | Kizuna's own source: the JSONL worker and the CMake target that links it. Also the executable's GPL corresponding source. |
-| `models/keys.txt` | An input the build cannot derive without the payload being deleted in the cleanup issue. |
-| `patches/*.patch` | The modifications made to a third-party engine. They are both the build recipe and the Apache-2.0 corresponding-source record. |
-| `tools/extract-keys.py` | Regenerates and cross-checks `keys.txt`, so the derivation survives without the spike branch. |
-| `licenses/*`, `LICENSING.md` | The licence texts that must travel with the binary, and the review that says why. See [LICENSING.md](LICENSING.md). |
-
-Everything else — ONNX Runtime, the OpenCV build, the unpacked engine source,
-the `.onnx` weights — is fetched and rebuilt from the pinned URLs and SHA-256
-hashes recorded in the build script. That script is the durable record of how
-this payload is produced.
-
-## Building
+Use Windows x64 with Visual Studio 2022 or newer, its C++ x64/CMake/Ninja
+components, and 7-Zip:
 
 ```powershell
 ./scripts/build-ppocr-onnx-win-x64.ps1
-```
-
-Requires Visual Studio 2022 or newer with the C++ x64 workload plus its bundled
-CMake and Ninja, and 7-Zip. The first run downloads ~350 MB and spends about a
-minute compiling a minimal static OpenCV; later runs rebuild only the worker, in
-a few seconds. `-Clean` discards the unpacked engine source and both build
-directories without throwing away the downloads.
-
-The script header carries the decisions behind each pin, the licence of every
-input, and why DirectML is absent. Read it before changing a version.
-
-It leaves a runnable worker in `$WorkRoot\out`, laid out the way the payload
-will be. Drive it through the protocol with:
-
-```powershell
 ./scripts/verify-ppocr-onnx-win-x64.ps1
 ```
 
-which checks protocol parity point by point against the committed 1080p
-fixture, reports startup and warm latency, and draws the returned quadrilaterals
-over the fixture so the coordinates can be looked at rather than trusted.
+The build cache defaults to `C:\kizuna\build-tools\ppocr`; `-Clean` rebuilds
+from pinned sources without deleting downloads. The runnable tree is left in
+`C:\kizuna\build-tools\ppocr\out`. Nothing in the build cache belongs in git.
 
-## The worker
+Committed inputs are limited to:
 
-`worker/ppocr_worker.cc` speaks the same newline-delimited JSON protocol as
-`paddleocr/worker/paddleocr_worker.cc`, version 1, frame for frame — that
-protocol, not the engine, is what Kizuna depends on. What changed underneath:
+| Path | Purpose |
+|---|---|
+| `worker/` | JSONL worker and CMake target; GPL corresponding source |
+| `patches/` | reviewed RapidOcrOnnx changes applied by the build |
+| `models/keys.txt` | exact PP-OCRv5 character dictionary |
+| `tools/extract-keys.py` | dictionary regeneration and cross-check |
+| `licenses/`, `LICENSING.md` | licence texts and compliance record |
 
-- Paddle Inference became ONNX Runtime through the patched engine, so a capture
-  costs **91 ms p50 against 1518 ms** end to end through the protocol, measured
-  on the same machine and fixture with each payload's own verification script.
-- **No temporary file per request.** PaddleOCR's batch sampler dispatched on a
-  file suffix, so every capture went to disk and back; `cv::imdecode` takes the
-  bytes directly.
-- `--det-model` and `--rec-model` name `.onnx` files rather than directories,
-  and `--keys` is new and required.
-- ONNX Runtime's thread count is set from the **physical** core count. Its own
-  default is every logical processor, which the spike measured as a 2x loss on
-  an eight-core SMT desktop (8 threads 79 ms, 16 threads 169 ms).
-- Recognition runs through `getTextLinesBatched(8, 320)` from `patches/0002`.
-- The engine reports model setup with `printf`, and **stdout carries the
-  protocol**, so stdout is pointed at stderr while the engine is being built.
-  That keeps the `total keys size(18385)` assertion visible without it ever
-  landing in a protocol frame.
-- The worker itself checks that `models/keys.txt` has exactly 18383 entries
-  before loading anything, because the failure mode is silent garbage.
+The build script pins and verifies ONNX Runtime 1.24.4, RapidOcrOnnx
+`abd498c`, OpenCV 4.14.0, and both PP-OCRv5 ONNX models. DirectML is not built:
+the spike found CPU already meets the interaction budget with a smaller,
+cross-platform-compatible runtime.
 
-The tuning knobs the Paddle worker exposes — `--det-side-len`, `--cpu-threads`,
-`--rec-batch-size` — are deliberately absent for now and land with
-[#14](https://github.com/crpcrp/kizuna-vendor/issues/14). The defaults are what
-the Paddle worker asks PaddleOCR for today: detection side 960, box threshold
-0.6, unclip ratio 1.5, no angle classification.
+## Worker contract
 
-The protocol is five message shapes, so the worker reads and writes them
-directly instead of linking a JSON library. That keeps the reviewed dependency
-set in [LICENSING.md](LICENSING.md) exactly as it stands: the Paddle worker's
-`nlohmann/json` reached it through PaddleOCR's own vendored tree, which this
-payload does not have.
+`worker/ppocr_worker.cc` implements the same protocol-v1 JSON-lines contract
+as the Paddle worker. It decodes captures in memory, keeps all non-protocol
+logging on stderr, validates the 18,383-entry dictionary, and stays alive after
+bad requests.
 
-## The engine
+Required options are `--protocol-version 1`, `--lang japan`, `--det-model`,
+`--rec-model`, and `--keys`. Tuning defaults are:
 
-[`RapidAI/RapidOcrOnnx`](https://github.com/RapidAI/RapidOcrOnnx) at
-`abd498c`, vendored as a pinned commit and patched — not tracked as a
-dependency. Its last functional change was 2024-10-22 and its CI still pins
-ONNX Runtime 1.15.1, so we own the patches.
+| Option | Default |
+|---|---:|
+| `--det-side-len` | `960` |
+| `--det-limit-type` | `max` |
+| `--det-thresh` / `--det-box-thresh` | `0.3` / `0.6` |
+| `--det-unclip-ratio` | `1.5` |
+| `--rec-score-thresh` | `0` |
+| `--cpu-threads` | physical cores, max 16 |
+| `--rec-batch-size` / `--rec-width` | `8` / `320` |
 
-It was chosen because there is no alternative: PaddleOCR's official
-`deploy/cpp_infer` is Paddle Inference only (`SUPPORT_RUN_MODE` is
-`{paddle, paddle_fp16, mkldnn, mkldnn_bf16}`, and it contains no `Ort::Session`
-anywhere), so the real choice was patching this or writing the pipeline from
-scratch. Its PP-OCRv5 compatibility is measured — 5/5 fixture lines byte-exact —
-rather than assumed.
+`--mkldnn-cache`, `--det-model-name`, and `--rec-model-name` are accepted for
+Paddle-era callers and ignored with a startup note. The source header records
+validation ranges.
 
-`patches/0001` is correctness: the official ONNX Runtime include layout, an
-initialised `Ort::Session*` in every net (upstream leaves them wild, so any
-failure before `initModel` becomes an access violation in the destructor rather
-than a reportable error), CR stripping when reading `keys.txt`, and a UTF-8
-`strToWstr` — the old one widened byte by byte and mangled any non-ASCII model
-path, which this repository's own checkout path has.
+Measured at eight threads on `scripts/testdata/game-capture-1080p.png`:
 
-`patches/0002` adds batched fixed-width recognition: one `[N,3,48,320]` `Run`
-instead of upstream's one-`Run`-per-region loop at a width that changes with
-every crop. Worth 90 → 80 ms on CPU. It inherits PaddleOCR's own limitation —
-a region wider than the target aspect ratio is squashed rather than bucketed,
-which is fine for dialogue crops and worth revisiting for full-width subtitles.
+| detection side | 480 | 640 | 736 | 960 | 1280 | 1920 |
+|---:|---:|---:|---:|---:|---:|---:|
+| warm p50 | 55 ms | 64 ms | 67 ms | 83 ms | 112 ms | 253 ms |
+| correct lines | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 |
 
-A third patch wires DirectML. It is parked on the `spike/ppocr-onnx-cpu` branch
-and deliberately not applied; see the build script header for why.
+On the 8-core/16-thread spike host, 1/2/4/8/16 threads measured
+205/119/83/79/169 ms. The default therefore uses physical cores rather than
+logical processors.
 
-## `models/keys.txt`
+## Engine and dictionary
 
-The PP-OCRv5 character dictionary: 18383 entries, LF, no trailing blank line,
-`sha256 d1979e9f794c464c0d2e0b70a7fe14dd978e9dc644c0e71f14158cdf8342af1b`.
+RapidOcrOnnx is treated as vendored source, not a maintained dependency:
 
-It was extracted from the recogniser ONNX's own `character` metadata and
-verified byte-identical to `PostProcess.character_dict` in
-`paddleocr/models/rec/inference.yml`:
+- `0001` uses the official ONNX Runtime layout, initializes session pointers,
+  handles UTF-8 paths, and fixes tensor counts and unclip-result iteration.
+- `0002` adds fixed-width batched recognition and profiling hooks.
+
+Official PaddleOCR has no standalone C++ ONNX Runtime pipeline; its C++ deploy
+path still links Paddle Inference. The spike and measurements behind this
+choice are in [issue #11](https://github.com/crpcrp/kizuna-vendor/issues/11).
+
+`models/keys.txt` has 18,383 LF-delimited entries. It is extracted from the
+recognizer model's `character` metadata and matches PaddleOCR's
+`PostProcess.character_dict` byte-for-byte. Do not add a leading blank or
+trailing space: RapidOcrOnnx supplies the CTC blank and final space itself.
+Regenerate it with:
 
 ```powershell
 python ppocr/tools/extract-keys.py `
@@ -146,34 +98,4 @@ python ppocr/tools/extract-keys.py `
   paddleocr/models/rec/inference.yml
 ```
 
-Three properties decode to garbage if they are broken, and all three are caught
-by asserting the runtime's `total keys size(18385)` print:
-
-- **No leading blank entry.** The recogniser has 18385 output classes: index 0
-  is the CTC blank, 1..18383 the dictionary, 18384 a space. RapidOcrOnnx
-  prepends the blank and appends the space itself, so adding either to the file
-  shifts every index by one.
-- **LF only**, enforced by `.gitattributes`. Upstream reads with `getline` and
-  keeps a CR; `0001` strips it defensively but the file should not need it.
-- The first entry is U+3000 IDEOGRAPHIC SPACE — a real character, not padding —
-  and ten entries are multi-codepoint flag emoji, so a reader that assumes one
-  codepoint per line is wrong.
-
-## Licensing
-
-`ppocr.exe` will be conveyed under GPL-3.0-or-later, the way `paddleocr.exe` is
-today: everything it links — RapidOcrOnnx and OpenCV (Apache-2.0), clipper
-(BSL-1.0), zlib, libpng — is one-way compatible with GPLv3, and
-`onnxruntime.dll` beside it stays MIT. [LICENSING.md](LICENSING.md) carries the
-full review, the Apache-2.0 §4(b) modification notice for the patched engine,
-the two-upstream provenance of the model weights, and the checklist the
-staging issue has to satisfy before anything is published.
-
-## Where the rest of the knowledge lives
-
-- [#11](https://github.com/crpcrp/kizuna-vendor/issues/11) — the spike: every
-  measurement, the provider-placement evidence, and the CPU-over-DirectML
-  decision.
-- [`spike/ppocr-onnx-cpu`](https://github.com/crpcrp/kizuna-vendor/tree/spike/ppocr-onnx-cpu)
-  — the measurement harness, the raw run logs and the parked DirectML patch.
-  Reference material, not a payload; nothing there is meant to reach `main`.
+See [LICENSING.md](LICENSING.md) before staging or redistributing the runtime.

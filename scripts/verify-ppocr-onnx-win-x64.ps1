@@ -97,6 +97,13 @@ function Quote-Argument {
     return '"' + ($Value -replace '"', '\"') + '"'
 }
 
+$requiredArguments = @(
+    '--protocol-version', '1', '--lang', 'japan',
+    '--det-model', (Quote-Argument $detModel),
+    '--rec-model', (Quote-Argument $recModel),
+    '--keys', (Quote-Argument $keys)
+)
+
 Write-Host ''
 Write-Host '== Persistent worker =='
 $fixture = Join-Path $PSScriptRoot 'testdata\game-capture-1080p.png'
@@ -117,13 +124,15 @@ $expectedLines = @(
 
 $startInfo = New-Object System.Diagnostics.ProcessStartInfo
 $startInfo.FileName = $worker
-# The models are .onnx files now rather than directories, and the dictionary is
-# passed explicitly. Everything else is fixed until issue #14 exposes it.
 $startInfo.Arguments = @(
-    '--protocol-version', '1', '--lang', 'japan',
-    '--det-model', (Quote-Argument $detModel),
-    '--rec-model', (Quote-Argument $recModel),
-    '--keys', (Quote-Argument $keys)
+    $requiredArguments
+    # This includes Kizuna's current argument plus every compatibility-only
+    # Paddle option. Functional tuning options use their defaults here.
+    '--det-side-len', '960', '--det-limit-type', 'max',
+    '--det-thresh', '0.3', '--det-box-thresh', '0.6',
+    '--det-unclip-ratio', '1.5', '--rec-score-thresh', '0',
+    '--rec-batch-size', '8', '--rec-width', '320',
+    '--mkldnn-cache', '512', '--det-model-name', 'X', '--rec-model-name', 'Y'
 ) -join ' '
 $startInfo.UseShellExecute = $false
 $startInfo.CreateNoWindow = $true
@@ -239,6 +248,8 @@ try {
     $malformed = @(
         @{ Name = 'a truncated line'; Line = '{"version":1,"type":"recognize"' },
         @{ Name = 'a line that is not JSON'; Line = 'not json at all' },
+        @{ Name = 'a leading-zero JSON number'; Line = '{"version":01,"type":"recognize","requestId":97,"imageBase64":""}' },
+        @{ Name = 'an incomplete JSON exponent'; Line = '{"version":1e,"type":"recognize","requestId":96,"imageBase64":""}' },
         @{ Name = 'an unusable image'; Line = '{"version":1,"type":"recognize","requestId":99,"imageBase64":"@@@"}' },
         @{ Name = 'the wrong protocol version'; Line = '{"version":2,"type":"recognize","requestId":98,"imageBase64":""}' }
     )
@@ -280,7 +291,55 @@ try {
     }
     $stderr = $stderrTask.Result
     if ($stderr) { Write-Host "Worker stderr:`n$($stderr.TrimEnd())" }
+    foreach ($ignored in @('--mkldnn-cache', '--det-model-name', '--rec-model-name')) {
+        if ($stderr -notlike "*note: $ignored is accepted for compatibility and ignored*") {
+            Write-Host "MISSING NOTE  $ignored"
+            $failures++
+        }
+    }
     $process.Dispose()
+}
+
+Write-Host ''
+Write-Host '== Invalid worker options =='
+$invalidOptions = @(
+    @('--det-side-len', '0'),
+    @('--det-side-len', '4097'),
+    @('--det-limit-type', 'min'),
+    @('--det-thresh', '1.1'),
+    @('--det-box-thresh', '-0.1'),
+    @('--det-unclip-ratio', '0'),
+    @('--rec-score-thresh', 'nan'),
+    @('--cpu-threads', '0'),
+    @('--rec-batch-size', '0'),
+    @('--rec-width', '0')
+)
+foreach ($invalid in $invalidOptions) {
+    $badStart = New-Object System.Diagnostics.ProcessStartInfo
+    $badStart.FileName = $worker
+    $badStart.Arguments = @($requiredArguments + $invalid) -join ' '
+    $badStart.UseShellExecute = $false
+    $badStart.CreateNoWindow = $true
+    $badStart.RedirectStandardOutput = $true
+    $badStart.RedirectStandardError = $true
+    $badProcess = New-Object System.Diagnostics.Process
+    $badProcess.StartInfo = $badStart
+    if (-not $badProcess.Start()) { throw 'Could not start ppocr.exe' }
+    $badStdout = $badProcess.StandardOutput.ReadToEndAsync()
+    $badStderr = $badProcess.StandardError.ReadToEndAsync()
+    if (-not $badProcess.WaitForExit(5000)) {
+        $badProcess.Kill()
+        throw "Worker did not reject $($invalid -join ' ') at startup"
+    }
+    $badFrame = $badStdout.Result | ConvertFrom-Json
+    if ($badProcess.ExitCode -eq 0 -or $badFrame.type -ne 'error' -or
+        $badStderr.Result -notlike '*invalid worker options*') {
+        Write-Host "NOT REJECTED  $($invalid -join ' ')"
+        $failures++
+    } else {
+        Write-Host "  $($invalid -join ' ') -> exit $($badProcess.ExitCode)"
+    }
+    $badProcess.Dispose()
 }
 
 # The coordinates are the one part of the protocol that cannot be checked by

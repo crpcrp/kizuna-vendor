@@ -18,6 +18,8 @@ paddleocr/worker/*.patch text eol=lf
 # every character to garbage. The patched reader strips it defensively; this
 # keeps the file itself honest. The patches must stay LF for `git apply` too.
 ppocr/models/keys.txt text eol=lf
+ppocr/models/*.onnx filter=lfs diff=lfs merge=lfs -text
+ppocr/bin/THIRD-PARTY-NOTICES.ONNXRuntime.txt binary
 ppocr/patches/*.patch text eol=lf
 ppocr/tools/*.py text eol=lf
 ppocr/worker/*.cc text eol=lf

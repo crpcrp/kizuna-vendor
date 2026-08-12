@@ -6,9 +6,8 @@
     Downloads and SHA-256 verifies ONNX Runtime, the RapidOcrOnnx engine source,
     the OpenCV sources and the PP-OCRv5 ONNX models; applies the Kizuna patches
     to RapidOcrOnnx; builds a minimal static OpenCV; and links ppocr/worker into
-    ppocr.exe. It leaves a runnable worker in $WorkRoot\out and stages nothing
-    into ppocr/ — the payload, its manifest entries and its notices land with a
-    later issue.
+    ppocr.exe. It leaves a disposable runnable worker in $WorkRoot\out and
+    stages the complete CPU-only payload under ppocr/.
 
     This is the ONNX Runtime successor to build-paddleocr-win-x64.ps1, which
     keeps working untouched until the cleanup issue retires it. Every payload's
@@ -283,9 +282,23 @@ if ($paths.ContainsKey('opencv-windows.exe')) {
 $ortInclude = Join-Path $ortRoot 'build\native\include'
 $ortLib = Join-Path $ortRoot 'runtimes\win-x64\native\onnxruntime.lib'
 $ortDll = Join-Path $ortRoot 'runtimes\win-x64\native\onnxruntime.dll'
+$ortProvidersShared = Join-Path $ortRoot 'runtimes\win-x64\native\onnxruntime_providers_shared.dll'
+$ortThirdPartyNotices = Join-Path $ortRoot 'ThirdPartyNotices.txt'
+$vcRedist = Get-ChildItem (Join-Path $toolchain.Root 'VC\Redist\MSVC') -Directory |
+    Where-Object { $_.Name -match '^\d+\.' } | Sort-Object Name -Descending | Select-Object -First 1
+if (-not $vcRedist) { throw "No MSVC redistributable under $($toolchain.Root)" }
+$vcCrt = Get-ChildItem (Join-Path $vcRedist.FullName 'x64') -Directory |
+    Where-Object { $_.Name -like 'Microsoft.VC*.CRT' } | Select-Object -First 1
+if (-not $vcCrt) { throw "No x64 MSVC CRT under $($vcRedist.FullName)" }
+$vcRuntimeFiles = @('msvcp140.dll', 'msvcp140_1.dll', 'vcruntime140.dll', 'vcruntime140_1.dll') |
+    ForEach-Object { Join-Path $vcCrt.FullName $_ }
 Assert-Path -Path (Join-Path $ortInclude 'onnxruntime_cxx_api.h') -What 'the ONNX Runtime C++ headers'
 Assert-Path -Path $ortLib -What 'the ONNX Runtime import library'
 Assert-Path -Path $ortDll -What 'the ONNX Runtime runtime library'
+Assert-Path -Path $ortThirdPartyNotices -What 'the ONNX Runtime third-party notices'
+foreach ($vcRuntimeFile in $vcRuntimeFiles) {
+    Assert-Path -Path $vcRuntimeFile -What 'an ONNX Runtime VC runtime dependency'
+}
 Assert-Path -Path (Join-Path $opencvSrc 'CMakeLists.txt') -What 'the OpenCV sources'
 
 # Hash patch content so editing a patch cannot silently reuse stale sources.
@@ -437,7 +450,41 @@ New-Item -ItemType Directory -Force -Path (Join-Path $runtime 'bin') | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $runtime 'models') | Out-Null
 Copy-Item -LiteralPath $workerExe -Destination (Join-Path $runtime 'bin') -Force
 Copy-Item -LiteralPath $ortDll -Destination (Join-Path $runtime 'bin') -Force
+if (Test-Path -LiteralPath $ortProvidersShared) {
+    Copy-Item -LiteralPath $ortProvidersShared -Destination (Join-Path $runtime 'bin') -Force
+}
+Copy-Item -LiteralPath $ortThirdPartyNotices `
+    -Destination (Join-Path $runtime 'bin\THIRD-PARTY-NOTICES.ONNXRuntime.txt') -Force
+foreach ($vcRuntimeFile in $vcRuntimeFiles) {
+    Copy-Item -LiteralPath $vcRuntimeFile -Destination (Join-Path $runtime 'bin') -Force
+}
 Copy-Item -Path (Join-Path $models '*') -Destination (Join-Path $runtime 'models') -Force
+
+# Replace only generated runtime/model files. Licences, patches, tools and
+# corresponding source are maintained in the repository and survive rebuilds.
+$payloadBin = Join-Path $Payload 'bin'
+$payloadModels = Join-Path $Payload 'models'
+Remove-Item -LiteralPath $payloadBin -Recurse -Force -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Force -Path $payloadBin | Out-Null
+New-Item -ItemType Directory -Force -Path $payloadModels | Out-Null
+Get-ChildItem -LiteralPath $payloadModels -Filter '*.onnx' -File -ErrorAction SilentlyContinue |
+    Remove-Item -Force
+
+Copy-Item -LiteralPath $workerExe -Destination (Join-Path $payloadBin 'ppocr.exe') -Force
+Copy-Item -LiteralPath $ortDll -Destination (Join-Path $payloadBin 'onnxruntime.dll') -Force
+if (Test-Path -LiteralPath $ortProvidersShared) {
+    Copy-Item -LiteralPath $ortProvidersShared `
+        -Destination (Join-Path $payloadBin 'onnxruntime_providers_shared.dll') -Force
+}
+Copy-Item -LiteralPath $ortThirdPartyNotices `
+    -Destination (Join-Path $payloadBin 'THIRD-PARTY-NOTICES.ONNXRuntime.txt') -Force
+foreach ($vcRuntimeFile in $vcRuntimeFiles) {
+    Copy-Item -LiteralPath $vcRuntimeFile -Destination $payloadBin -Force
+}
+Copy-Item -LiteralPath (Join-Path $models 'ch_PP-OCRv5_det_mobile.onnx') `
+    -Destination (Join-Path $payloadModels 'det.onnx') -Force
+Copy-Item -LiteralPath (Join-Path $models 'ch_PP-OCRv5_rec_mobile.onnx') `
+    -Destination (Join-Path $payloadModels 'rec.onnx') -Force
 
 Write-Host ''
 Write-Host 'Built from:'
@@ -455,5 +502,5 @@ foreach ($file in Get-ChildItem -LiteralPath $runtime -Recurse -File | Sort-Obje
         $file.FullName.Substring($runtime.Length + 1), ($file.Length / 1MB))
 }
 Write-Host ''
-Write-Host 'Verify it with scripts/verify-ppocr-onnx-win-x64.ps1.'
-Write-Host 'Nothing was staged into ppocr/: the payload lands with issue #16.'
+Write-Host "Staged payload: $Payload"
+Write-Host 'Refresh hashes, then verify with scripts/verify-ppocr-onnx-win-x64.ps1.'

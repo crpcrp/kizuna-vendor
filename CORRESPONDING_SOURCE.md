@@ -32,6 +32,37 @@ file and the adjacent license files with every redistribution.
 - [IPADIC source archive](https://github.com/shogo82148/mecab/releases/download/v0.996.13/mecab-ipadic-2.7.0-20070801.tar.gz)
   (`SHA-256 74130f44264ce5b8cfa51e498b99345f71d2f854b74a9e9dfb6489e13e479e67`)
 
+## PP-OCR ONNX runtime (Windows x64)
+
+`ppocr.exe` is conveyed under GPL-3.0-or-later. Its entry point is
+`ppocr/worker/ppocr_worker.cc`; the exact RapidOcrOnnx modifications are in
+`ppocr/patches/`; and `scripts/build-ppocr-onnx-win-x64.ps1` pins, verifies,
+builds and stages every input.
+
+- [RapidOcrOnnx `abd498c`](https://github.com/RapidAI/RapidOcrOnnx/tree/abd498c13a6dbe5f3b3c0d421d72e01bb3e6ee6d),
+  archive SHA-256
+  `059a5fb008dbc7d5d0e7606e73f23a649b86000f0ddc696051abd02aea56edab`.
+- [Microsoft.ML.OnnxRuntime 1.24.4](https://www.nuget.org/packages/Microsoft.ML.OnnxRuntime/1.24.4),
+  NuGet SHA-256
+  `4b978d5065b85e7004b6c6f60ca494bd978fbe6836cbf0a0b52d82b61ab99638`.
+- [OpenCV 4.14.0](https://github.com/opencv/opencv/tree/4.14.0), Windows
+  source package SHA-256
+  `5f266a8b73bed535962d7e861a6457e32a0dd5f463ad0a7cf8707a135469be63`.
+  The build recipe selects static `core`, `imgproc` and `imgcodecs`, including
+  its pinned zlib 1.3.2 and libpng 1.6.57 sources.
+- [PP-OCRv5 detection model](https://www.modelscope.cn/models/RapidAI/RapidOCR/file/view/v3.9.2/onnx/PP-OCRv5/det/ch_PP-OCRv5_det_mobile.onnx),
+  SHA-256 `4d97c44a20d30a81aad087d6a396b08f786c4635742afc391f6621f5c6ae78ae`.
+- [PP-OCRv5 recognition model](https://www.modelscope.cn/models/RapidAI/RapidOCR/file/view/v3.9.2/onnx/PP-OCRv5/rec/ch_PP-OCRv5_rec_mobile.onnx),
+  SHA-256 `5825fc7ebf84ae7a412be049820b4d86d77620f204a041697b0494669b1742c5`.
+  `ppocr/models/keys.txt` is extracted from this model's `character` metadata;
+  `ppocr/tools/extract-keys.py` records the reproducible extraction.
+
+RapidOcrOnnx is modified by `0001` for the official ONNX Runtime layout,
+session safety and UTF-8 correctness, and by `0002` for batched recognition and
+profiling. `ppocr/LICENSING.md` is the prominent Apache-2.0 §4(b) modification
+notice. Preserve the worker, patches, build script, configuration, exact input
+archives and licence texts for as long as the executable is offered.
+
 ## PaddleOCR 3.7.0 (Windows OCR runtime)
 
 `paddleocr.exe` is conveyed under GPL-3.0-or-later, so its corresponding

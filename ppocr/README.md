@@ -2,12 +2,12 @@
 
 This is the CPU ONNX Runtime replacement for `paddleocr/`. On the committed
 1080p fixture it reads the same five Japanese lines in about 80 ms p50 versus
-about 1.5 s for the shipped Paddle worker. The prepared runtime is about 39 MB
+about 1.5 s for the shipped Paddle worker. The prepared runtime is about 41 MB
 instead of 352 MB.
 
-Nothing is staged as a payload yet. Issue
-[#16](https://github.com/crpcrp/kizuna-vendor/issues/16) adds binaries,
-checksums, manifest entries, and notices.
+The complete staged payload lives in this directory. It is built from pinned
+inputs, hashed in `SHA256SUMS.txt`, described by the `ppocr` manifest component,
+and covered by the repository notices.
 
 ## Build and verify
 
@@ -16,14 +16,16 @@ components, and 7-Zip:
 
 ```powershell
 ./scripts/build-ppocr-onnx-win-x64.ps1
+./scripts/refresh-ppocr-onnx-hashes.ps1
 ./scripts/verify-ppocr-onnx-win-x64.ps1
 ```
 
 The build cache defaults to `C:\kizuna\build-tools\ppocr`; `-Clean` rebuilds
-from pinned sources without deleting downloads. The runnable tree is left in
-`C:\kizuna\build-tools\ppocr\out`. Nothing in the build cache belongs in git.
+from pinned sources without deleting downloads. A disposable runnable tree is
+left under `out`, while the publishable runtime is staged here. Nothing in the
+build cache belongs in git.
 
-Committed inputs are limited to:
+The payload and its corresponding source include:
 
 | Path | Purpose |
 |---|---|
@@ -32,6 +34,7 @@ Committed inputs are limited to:
 | `models/keys.txt` | exact PP-OCRv5 character dictionary |
 | `tools/extract-keys.py` | dictionary regeneration and cross-check |
 | `licenses/`, `LICENSING.md` | licence texts and compliance record |
+| `bin/`, `models/*.onnx` | staged CPU runtime and PP-OCRv5 models |
 
 The build script pins and verifies ONNX Runtime 1.24.4, RapidOcrOnnx
 `abd498c`, OpenCV 4.14.0, and both PP-OCRv5 ONNX models. DirectML is not built:

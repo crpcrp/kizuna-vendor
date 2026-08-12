@@ -1,0 +1,192 @@
+From 51ec558b32a6f39985d0b87944994624931e6a39 Mon Sep 17 00:00:00 2001
+From: Adam Kocsis <kocsisadam1991@gmail.com>
+Date: Wed, 12 Aug 2026 09:22:28 +0200
+Subject: [PATCH 1/3] Build against the official ONNX Runtime layout and stop
+ crashing on init failure
+
+- Include <onnxruntime_cxx_api.h> / <dml_provider_factory.h> as the official
+  Microsoft NuGet lays them out, instead of RapidAI's nested tree.
+- Initialise every Ort::Session* to nullptr. Upstream leaves them wild, so any
+  failure before initModel turns a reportable error into an access violation in
+  the destructor, which makes a clean fallback impossible.
+- Strip a trailing CR when reading keys.txt, so a CRLF copy cannot silently
+  corrupt every decoded character.
+- Widen model paths with MultiByteToWideChar(CP_UTF8) instead of byte-by-byte,
+  which mangled any non-ASCII path.
+---
+ include/AngleNet.h    |  4 ++--
+ include/CrnnNet.h     |  4 ++--
+ include/DbNet.h       |  8 ++++++--
+ include/OcrLiteImpl.h |  2 +-
+ include/OcrUtils.h    |  2 +-
+ src/AngleNet.cpp      |  2 +-
+ src/CrnnNet.cpp       |  5 ++++-
+ src/OcrUtils.cpp      | 13 +++++++++++++
+ 8 files changed, 30 insertions(+), 10 deletions(-)
+
+diff --git a/include/AngleNet.h b/include/AngleNet.h
+index d14503c..25de290 100644
+--- a/include/AngleNet.h
++++ b/include/AngleNet.h
+@@ -2,7 +2,7 @@
+ #define __OCR_ANGLENET_H__
+ 
+ #include "OcrStruct.h"
+-#include <onnxruntime/core/session/onnxruntime_cxx_api.h>
++#include <onnxruntime_cxx_api.h>
+ #include <opencv2/opencv.hpp>
+ 
+ class AngleNet {
+@@ -22,7 +22,7 @@ public:
+ private:
+     bool isOutputAngleImg = false;
+ 
+-    Ort::Session *session;
++    Ort::Session *session = nullptr;
+     Ort::Env env = Ort::Env(ORT_LOGGING_LEVEL_ERROR, "AngleNet");
+     Ort::SessionOptions sessionOptions = Ort::SessionOptions();
+     int numThread = 0;
+diff --git a/include/CrnnNet.h b/include/CrnnNet.h
+index 2b4cdbe..24d00dd 100644
+--- a/include/CrnnNet.h
++++ b/include/CrnnNet.h
+@@ -2,7 +2,7 @@
+ #define __OCR_CRNNNET_H__
+ 
+ #include "OcrStruct.h"
+-#include <onnxruntime/core/session/onnxruntime_cxx_api.h>
++#include <onnxruntime_cxx_api.h>
+ #include <opencv2/opencv.hpp>
+ 
+ class CrnnNet {
+@@ -20,7 +20,7 @@ public:
+ 
+ private:
+     bool isOutputDebugImg = false;
+-    Ort::Session *session;
++    Ort::Session *session = nullptr;
+     Ort::Env env = Ort::Env(ORT_LOGGING_LEVEL_ERROR, "CrnnNet");
+     Ort::SessionOptions sessionOptions = Ort::SessionOptions();
+     int numThread = 0;
+diff --git a/include/DbNet.h b/include/DbNet.h
+index e2b9a17..ccbe286 100644
+--- a/include/DbNet.h
++++ b/include/DbNet.h
+@@ -2,7 +2,7 @@
+ #define __OCR_DBNET_H__
+ 
+ #include "OcrStruct.h"
+-#include <onnxruntime/core/session/onnxruntime_cxx_api.h>
++#include <onnxruntime_cxx_api.h>
+ #include <opencv2/opencv.hpp>
+ 
+ class DbNet {
+@@ -19,7 +19,11 @@ public:
+                                       float boxThresh, float unClipRatio);
+ 
+ private:
+-    Ort::Session *session;
++    // Never initialised upstream: if anything fails before initModel (a
++    // missing model file, an unusable execution provider) the destructor
++    // deletes a wild pointer and the process dies with an access violation
++    // instead of reporting the error and falling back.
++    Ort::Session *session = nullptr;
+     Ort::Env env = Ort::Env(ORT_LOGGING_LEVEL_ERROR, "DbNet");
+     Ort::SessionOptions sessionOptions = Ort::SessionOptions();
+     int numThread = 0;
+diff --git a/include/OcrLiteImpl.h b/include/OcrLiteImpl.h
+index 113751d..7bab574 100644
+--- a/include/OcrLiteImpl.h
++++ b/include/OcrLiteImpl.h
+@@ -2,7 +2,7 @@
+ #define __OCR_LITE_IMPL_H__
+ 
+ #include "opencv2/core.hpp"
+-#include <onnxruntime/core/session/onnxruntime_cxx_api.h>
++#include <onnxruntime_cxx_api.h>
+ #include "OcrStruct.h"
+ #include "DbNet.h"
+ #include "AngleNet.h"
+diff --git a/include/OcrUtils.h b/include/OcrUtils.h
+index 227ec9a..ff41ef7 100644
+--- a/include/OcrUtils.h
++++ b/include/OcrUtils.h
+@@ -3,7 +3,7 @@
+ 
+ #include <opencv2/core.hpp>
+ #include "OcrStruct.h"
+-#include <onnxruntime/core/session/onnxruntime_cxx_api.h>
++#include <onnxruntime_cxx_api.h>
+ #include <numeric>
+ #include <sys/stat.h>
+ 
+diff --git a/src/AngleNet.cpp b/src/AngleNet.cpp
+index b26dce8..7345127 100644
+--- a/src/AngleNet.cpp
++++ b/src/AngleNet.cpp
+@@ -3,7 +3,7 @@
+ #include <numeric>
+ 
+ #ifdef __DIRECTML__
+-#include <onnxruntime/core/providers/dml/dml_provider_factory.h>
++#include <dml_provider_factory.h>
+ #endif
+ 
+ void AngleNet::setGpuIndex(int gpuIndex) {
+diff --git a/src/CrnnNet.cpp b/src/CrnnNet.cpp
+index 2800e59..330b9c8 100644
+--- a/src/CrnnNet.cpp
++++ b/src/CrnnNet.cpp
+@@ -4,7 +4,7 @@
+ #include <numeric>
+ 
+ #ifdef __DIRECTML__
+-#include <onnxruntime/core/providers/dml/dml_provider_factory.h>
++#include <dml_provider_factory.h>
+ #endif
+ 
+ void CrnnNet::setGpuIndex(int gpuIndex) {
+@@ -79,6 +79,9 @@ void CrnnNet::initModel(const std::string &pathStr, const std::string &keysPath)
+     std::string line;
+     if (in) {
+         while (getline(in, line)) {// line中不包括每行的换行符
++            // keys.txt is written with LF, but a CRLF copy would otherwise
++            // append a stray \r to every entry and corrupt the decoded text.
++            if (!line.empty() && line.back() == '\r') line.pop_back();
+             keys.push_back(line);
+         }
+     } else {
+diff --git a/src/OcrUtils.cpp b/src/OcrUtils.cpp
+index 7c3ea3f..c9b0ca4 100755
+--- a/src/OcrUtils.cpp
++++ b/src/OcrUtils.cpp
+@@ -1,3 +1,6 @@
++#ifdef _WIN32
++#include <windows.h>
++#endif
+ #include <opencv2/imgproc.hpp>
+ #include <opencv2/imgcodecs.hpp>
+ #include <numeric>
+@@ -12,9 +15,19 @@ double getCurrentTime() {
+ std::wstring strToWstr(std::string str) {
+     if (str.length() == 0)
+         return L"";
++#ifdef _WIN32
++    // The original widened byte-by-byte, which mangles any non-ASCII model
++    // path. Kizuna installs under the user profile, which routinely contains
++    // them.
++    int needed = MultiByteToWideChar(CP_UTF8, 0, str.c_str(), (int) str.size(), nullptr, 0);
++    std::wstring wstr(needed, L'\0');
++    MultiByteToWideChar(CP_UTF8, 0, str.c_str(), (int) str.size(), &wstr[0], needed);
++    return wstr;
++#else
+     std::wstring wstr;
+     wstr.assign(str.begin(), str.end());
+     return wstr;
++#endif
+ }
+ 
+ ScaleParam getScaleParam(cv::Mat &src, const float scale) {
+-- 
+2.37.3.windows.1
+

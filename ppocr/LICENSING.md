@@ -15,7 +15,7 @@ This is compliance documentation, not legal advice.
 
 ## The combined executable
 
-`ppocr.exe` will link, into one binary:
+`ppocr.exe` links, into one binary:
 
 | Component | Version | Licence | Text |
 |---|---|---|---|
@@ -37,10 +37,10 @@ and load one shared library beside it:
 as `paddleocr.exe` is today. Apache-2.0, BSL-1.0, the zlib licence and
 libpng-2 are all one-way compatible with GPLv3, so each component keeps its own
 terms inside the combined binary while the binary as a whole is GPL. Whoever
-ships it must offer its corresponding source: the worker, the patches under
-`ppocr/patches/`, and `scripts/build-ppocr-onnx-win-x64.ps1`, which pins every
-input by SHA-256 and is the "scripts used to control compilation and
-installation" that GPLv3 §1 asks for.
+ships it must offer its corresponding source: the worker under `ppocr/worker/`,
+the patches under `ppocr/patches/`, and `scripts/build-ppocr-onnx-win-x64.ps1`,
+which pins every input by SHA-256 and is the "scripts used to control
+compilation and installation" that GPLv3 §1 asks for.
 
 `onnxruntime.dll` is a separate work, not derived from the worker, and keeps
 its own MIT terms.

@@ -6,10 +6,12 @@ Ryzen 7 5800X3D against `scripts/testdata/game-capture-1080p.png`, it reads the
 same five Japanese lines in **80 ms p50 against the shipped worker's 1525 ms**,
 from a **39 MB payload against 352 MB**.
 
-Nothing is staged here yet. This directory currently holds only the inputs that
+Nothing is staged here yet. This directory holds the sources and inputs that
 have to be version-controlled; `scripts/build-ppocr-onnx-win-x64.ps1` downloads,
-verifies and prepares everything else, and the worker build lands with
-[#13](https://github.com/crpcrp/kizuna-vendor/issues/13).
+verifies and prepares everything else, builds `ppocr.exe` and leaves it runnable
+in its build tree. Staging the payload itself — the binaries, the manifest
+entries, the checksums and the notices — lands with
+[#16](https://github.com/crpcrp/kizuna-vendor/issues/16).
 
 ## What is committed, and what is not
 
@@ -20,10 +22,11 @@ live under the build script's `$WorkRoot` — `C:\kizuna\build-tools\ppocr` by
 default, alongside every other payload's build tree — outside the repository,
 and are a durable cache that costs no network to reuse.
 
-So this directory tracks exactly three kinds of file:
+So this directory tracks exactly these kinds of file:
 
 | Path | Why it is in git |
 |---|---|
+| `worker/*` | Kizuna's own source: the JSONL worker and the CMake target that links it. Also the executable's GPL corresponding source. |
 | `models/keys.txt` | An input the build cannot derive without the payload being deleted in the cleanup issue. |
 | `patches/*.patch` | The modifications made to a third-party engine. They are both the build recipe and the Apache-2.0 corresponding-source record. |
 | `tools/extract-keys.py` | Regenerates and cross-checks `keys.txt`, so the derivation survives without the spike branch. |
@@ -42,12 +45,60 @@ this payload is produced.
 
 Requires Visual Studio 2022 or newer with the C++ x64 workload plus its bundled
 CMake and Ninja, and 7-Zip. The first run downloads ~350 MB and spends about a
-minute compiling a minimal static OpenCV; later runs finish in under a second.
-`-Clean` discards the unpacked engine source and the OpenCV build without
-throwing away the downloads.
+minute compiling a minimal static OpenCV; later runs rebuild only the worker, in
+a few seconds. `-Clean` discards the unpacked engine source and both build
+directories without throwing away the downloads.
 
 The script header carries the decisions behind each pin, the licence of every
 input, and why DirectML is absent. Read it before changing a version.
+
+It leaves a runnable worker in `$WorkRoot\out`, laid out the way the payload
+will be. Drive it through the protocol with:
+
+```powershell
+./scripts/verify-ppocr-onnx-win-x64.ps1
+```
+
+which checks protocol parity point by point against the committed 1080p
+fixture, reports startup and warm latency, and draws the returned quadrilaterals
+over the fixture so the coordinates can be looked at rather than trusted.
+
+## The worker
+
+`worker/ppocr_worker.cc` speaks the same newline-delimited JSON protocol as
+`paddleocr/worker/paddleocr_worker.cc`, version 1, frame for frame — that
+protocol, not the engine, is what Kizuna depends on. What changed underneath:
+
+- Paddle Inference became ONNX Runtime through the patched engine, so a capture
+  costs **91 ms p50 against 1518 ms** end to end through the protocol, measured
+  on the same machine and fixture with each payload's own verification script.
+- **No temporary file per request.** PaddleOCR's batch sampler dispatched on a
+  file suffix, so every capture went to disk and back; `cv::imdecode` takes the
+  bytes directly.
+- `--det-model` and `--rec-model` name `.onnx` files rather than directories,
+  and `--keys` is new and required.
+- ONNX Runtime's thread count is set from the **physical** core count. Its own
+  default is every logical processor, which the spike measured as a 2x loss on
+  an eight-core SMT desktop (8 threads 79 ms, 16 threads 169 ms).
+- Recognition runs through `getTextLinesBatched(8, 320)` from `patches/0002`.
+- The engine reports model setup with `printf`, and **stdout carries the
+  protocol**, so stdout is pointed at stderr while the engine is being built.
+  That keeps the `total keys size(18385)` assertion visible without it ever
+  landing in a protocol frame.
+- The worker itself checks that `models/keys.txt` has exactly 18383 entries
+  before loading anything, because the failure mode is silent garbage.
+
+The tuning knobs the Paddle worker exposes — `--det-side-len`, `--cpu-threads`,
+`--rec-batch-size` — are deliberately absent for now and land with
+[#14](https://github.com/crpcrp/kizuna-vendor/issues/14). The defaults are what
+the Paddle worker asks PaddleOCR for today: detection side 960, box threshold
+0.6, unclip ratio 1.5, no angle classification.
+
+The protocol is five message shapes, so the worker reads and writes them
+directly instead of linking a JSON library. That keeps the reviewed dependency
+set in [LICENSING.md](LICENSING.md) exactly as it stands: the Paddle worker's
+`nlohmann/json` reached it through PaddleOCR's own vendored tree, which this
+payload does not have.
 
 ## The engine
 

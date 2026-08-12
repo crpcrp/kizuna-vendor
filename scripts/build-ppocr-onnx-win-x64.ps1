@@ -1,12 +1,14 @@
 <#
 .SYNOPSIS
-    Stages the pinned inputs for the Windows x64 PP-OCR ONNX Runtime payload.
+    Builds the Windows x64 PP-OCR ONNX Runtime worker from pinned inputs.
 
 .DESCRIPTION
     Downloads and SHA-256 verifies ONNX Runtime, the RapidOcrOnnx engine source,
     the OpenCV sources and the PP-OCRv5 ONNX models; applies the Kizuna patches
-    to RapidOcrOnnx; and builds a minimal static OpenCV. It then stops: the
-    worker itself is built by a later issue.
+    to RapidOcrOnnx; builds a minimal static OpenCV; and links ppocr/worker into
+    ppocr.exe. It leaves a runnable worker in $WorkRoot\out and stages nothing
+    into ppocr/ — the payload, its manifest entries and its notices land with a
+    later issue.
 
     This is the ONNX Runtime successor to build-paddleocr-win-x64.ps1, which
     keeps working untouched until the cleanup issue retires it. Every payload's
@@ -27,9 +29,10 @@
     See https://github.com/crpcrp/kizuna-vendor/issues/11 for the full spike.
 
 .PARAMETER Clean
-    Discards the unpacked engine source, the OpenCV build directory and the
-    OpenCV install prefix before rebuilding. Downloads in $WorkRoot\dl are kept.
-    Use after changing a pinned version, or to reproduce a build from scratch.
+    Discards the unpacked engine source, the OpenCV and worker build directories
+    and the OpenCV install prefix before rebuilding. Downloads in $WorkRoot\dl
+    are kept. Use after changing a pinned version, or to reproduce a build from
+    scratch.
 
 .NOTES
     Decisions this script encodes, per issue #12.
@@ -243,12 +246,15 @@ $opencvRoot = Join-Path $WorkRoot 'opencv'
 $opencvSrc = Join-Path $opencvRoot 'opencv\sources'
 $opencvBuild = Join-Path $WorkRoot 'ocv'
 $opencvPrefix = Join-Path $WorkRoot 'opencv-min'
+$workerBuild = Join-Path $WorkRoot 'worker'
+$runtime = Join-Path $WorkRoot 'out'
 
 if ($Clean) {
-    Write-Host 'Clean build: discarding the engine source, the OpenCV build and its install prefix'
+    Write-Host 'Clean build: discarding the engine source, both build directories and the OpenCV install prefix'
     Remove-Item -LiteralPath $engineRoot -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $opencvBuild -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $opencvPrefix -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $workerBuild -Recurse -Force -ErrorAction SilentlyContinue
 }
 foreach ($dir in @($WorkRoot, $downloads, $models)) {
     New-Item -ItemType Directory -Force -Path $dir | Out-Null
@@ -371,13 +377,68 @@ foreach ($model in @('ch_PP-OCRv5_det_mobile.onnx', 'ch_PP-OCRv5_rec_mobile.onnx
 }
 Copy-Item -LiteralPath $keys -Destination (Join-Path $models 'keys.txt') -Force
 
-# TODO(#13): build the worker. It links the patched engine sources
-# (src\DbNet.cpp, src\CrnnNet.cpp, src\OcrUtils.cpp, src\clipper.cpp) and the
-# Kizuna JSONL entry point against $ortInclude / $ortLib and $opencvDir, then
-# stages the executable, onnxruntime.dll, both models and keys.txt into ppocr/.
+# The worker. ppocr/worker/CMakeLists.txt links the Kizuna JSONL entry point
+# against the four patched engine sources, the static OpenCV and ONNX Runtime;
+# everything it needs to find is handed to it here.
+#
+# Two path hazards, both real on this repository's own checkout. CMake reads a
+# backslash in a -D value as an escape, so paths cross as forward slashes. And
+# a batch file is read in the console's OEM code page, which cannot carry the
+# non-ASCII characters a checkout path may contain - this one has an "a" with an
+# acute accent - so every path is passed through the environment, which is
+# Unicode, and the generated batch file stays pure ASCII.
+$workerSource = Join-Path $Payload 'worker'
+Assert-Path -Path (Join-Path $workerSource 'CMakeLists.txt') -What 'the worker build definition'
+
+function ConvertTo-CMakePath {
+    param([string]$Path)
+    return $Path -replace '\\', '/'
+}
+
+$env:KZ_CMAKE = $toolchain.CMake
+$env:KZ_NINJA = ConvertTo-CMakePath $toolchain.Ninja
+$env:KZ_SOURCE = ConvertTo-CMakePath $workerSource
+$env:KZ_BUILD = ConvertTo-CMakePath $workerBuild
+$env:KZ_ENGINE = ConvertTo-CMakePath $engineRoot
+$env:KZ_ORT_INCLUDE = ConvertTo-CMakePath $ortInclude
+$env:KZ_ORT_LIB = ConvertTo-CMakePath $ortLib
+$env:KZ_OPENCV = ConvertTo-CMakePath $opencvDir
+
+$workerScript = Join-Path $WorkRoot 'build-worker.bat'
+@"
+@echo off
+call "$($toolchain.Vcvars)" >nul || exit /b 1
+"%KZ_CMAKE%" -S "%KZ_SOURCE%" -B "%KZ_BUILD%" -G Ninja ^
+  -DCMAKE_MAKE_PROGRAM="%KZ_NINJA%" ^
+  -DCMAKE_BUILD_TYPE=Release ^
+  -DENGINE_DIR="%KZ_ENGINE%" ^
+  -DORT_INCLUDE_DIR="%KZ_ORT_INCLUDE%" ^
+  -DORT_LIBRARY="%KZ_ORT_LIB%" ^
+  -DOpenCV_DIR="%KZ_OPENCV%" || exit /b 1
+"%KZ_CMAKE%" --build "%KZ_BUILD%" || exit /b 1
+"@ | Set-Content -LiteralPath $workerScript -Encoding ascii
+
+$timer = [System.Diagnostics.Stopwatch]::StartNew()
+& cmd /c "`"$workerScript`""
+if ($LASTEXITCODE -ne 0) { throw "The worker build failed with exit code $LASTEXITCODE" }
+$timer.Stop()
+$workerExe = Join-Path $workerBuild 'ppocr.exe'
+Assert-Path -Path $workerExe -What 'the built worker'
+Write-Host "Built the worker in $([math]::Round($timer.Elapsed.TotalSeconds)) s"
+
+# A runnable tree in the build directory, not a payload: staging into ppocr/
+# along with the manifest, the checksums and the notices is issue #16's job.
+# This is what scripts/verify-ppocr-onnx-win-x64.ps1 drives, and it is laid out
+# the way the payload will be so the verification means something.
+Remove-Item -LiteralPath $runtime -Recurse -Force -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Force -Path (Join-Path $runtime 'bin') | Out-Null
+New-Item -ItemType Directory -Force -Path (Join-Path $runtime 'models') | Out-Null
+Copy-Item -LiteralPath $workerExe -Destination (Join-Path $runtime 'bin') -Force
+Copy-Item -LiteralPath $ortDll -Destination (Join-Path $runtime 'bin') -Force
+Copy-Item -Path (Join-Path $models '*') -Destination (Join-Path $runtime 'models') -Force
 
 Write-Host ''
-Write-Host 'Staged, ready for the worker build:'
+Write-Host 'Built from:'
 Write-Host "  ONNX Runtime $OnnxRuntimeVersion  $ortRoot"
 Write-Host "    headers    $ortInclude"
 Write-Host "    import lib $ortLib"
@@ -386,4 +447,11 @@ Write-Host "  RapidOcrOnnx $($RapidOcrOnnxCommit.Substring(0, 7)), patched  $eng
 Write-Host "  OpenCV $OpenCvVersion static  $opencvDir"
 Write-Host "  Models and dictionary  $models"
 Write-Host ''
-Write-Host 'Nothing was staged into ppocr/: the worker build lands with issue #13.'
+Write-Host "Runnable worker: $runtime"
+foreach ($file in Get-ChildItem -LiteralPath $runtime -Recurse -File | Sort-Object FullName) {
+    Write-Host ("  {0,-28} {1,8:N2} MB" -f `
+        $file.FullName.Substring($runtime.Length + 1), ($file.Length / 1MB))
+}
+Write-Host ''
+Write-Host 'Verify it with scripts/verify-ppocr-onnx-win-x64.ps1.'
+Write-Host 'Nothing was staged into ppocr/: the payload lands with issue #16.'
